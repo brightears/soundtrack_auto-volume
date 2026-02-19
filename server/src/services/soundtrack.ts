@@ -156,14 +156,12 @@ export class SoundtrackService {
     const clampedVolume = Math.max(0, Math.min(16, Math.round(volume)));
 
     const data = await this.graphql<any>(
-      `mutation SetVolume($soundZoneId: ID!, $volume: Int!) {
-        setSoundZoneVolume(input: { soundZoneId: $soundZoneId, volume: $volume }) {
-          soundZone {
-            id
-          }
+      `mutation SetVolume($soundZone: ID!, $volume: Int!) {
+        setVolume(input: { soundZone: $soundZone, volume: $volume }) {
+          volume
         }
       }`,
-      { soundZoneId: zoneId, volume: clampedVolume }
+      { soundZone: zoneId, volume: clampedVolume }
     );
 
     console.log(`Volume set: zone=${zoneId} volume=${clampedVolume}`);

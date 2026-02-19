@@ -16,8 +16,7 @@
 # Secrets - NEVER commit
 .env
 .env.*
-src/secrets.h
-secrets.h
+**/secrets.h
 
 # OS files
 .DS_Store
