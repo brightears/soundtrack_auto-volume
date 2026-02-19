@@ -15,17 +15,11 @@ export class SoundtrackService {
       return this.token;
     }
 
-    // Use pre-encoded token if available
-    if (config.soundtrack.apiToken) {
-      this.token = config.soundtrack.apiToken;
-      this.tokenExpiry = Date.now() + 3600000; // Assume 1hr
-      return this.token;
-    }
-
-    // Otherwise use client credentials flow
-    const credentials = Buffer.from(
-      `${config.soundtrack.clientId}:${config.soundtrack.clientSecret}`
-    ).toString("base64");
+    // Use pre-encoded Basic auth credentials or build from client ID/secret
+    const credentials = config.soundtrack.apiToken
+      || Buffer.from(
+        `${config.soundtrack.clientId}:${config.soundtrack.clientSecret}`
+      ).toString("base64");
 
     const res = await fetch("https://accounts.soundtrackyourbrand.com/oauth/token", {
       method: "POST",
