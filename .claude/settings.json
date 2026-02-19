@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pio *)",
+      "Bash(platformio *)",
+      "Bash(python3 -m platformio *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(which *)",
+      "Bash(brew *)",
+      "Bash(pip3 install *)",
+      "Bash(pip install *)",
+      "Bash(python3 *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebSearch*",
+      "WebFetch*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(sudo rm *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "echo 'File modified: $CLAUDE_FILE_PATH'"
+      }
+    ]
+  }
+}

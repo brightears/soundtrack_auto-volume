@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Device {
+  id          String       @id @default(uuid())
+  deviceId    String       @unique
+  name        String?
+  isOnline    Boolean      @default(false)
+  lastSeen    DateTime?
+  lastDbLevel Float?
+  configs     ZoneConfig[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model ZoneConfig {
+  id                    String   @id @default(uuid())
+  device                Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId              String
+  soundtrackAccountId   String
+  soundtrackAccountName String?
+  soundtrackZoneId      String
+  soundtrackZoneName    String?
+  isEnabled             Boolean  @default(false)
+  minVolume             Int      @default(2)
+  maxVolume             Int      @default(14)
+  quietThresholdDb      Float    @default(-40)
+  loudThresholdDb       Float    @default(-10)
+  smoothingFactor       Float    @default(0.3)
+  currentVolume         Int      @default(8)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([deviceId, soundtrackZoneId])
+}
