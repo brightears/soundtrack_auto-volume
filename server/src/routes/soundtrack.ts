@@ -11,7 +11,8 @@ soundtrackRoutes.get("/accounts", async (req, res) => {
     if (!query) return res.status(400).json({ error: "Query parameter 'q' required" });
 
     const accounts = await soundtrack.searchAccounts(query);
-    res.json(accounts);
+    // Map businessName -> name for frontend consistency
+    res.json(accounts.map((a: any) => ({ id: a.id, name: a.businessName, businessType: a.businessType })));
   } catch (err) {
     console.error("Failed to search accounts:", err);
     res.status(500).json({ error: "Failed to search Soundtrack accounts" });

@@ -2,52 +2,35 @@ import { config } from "../config";
 
 interface GraphQLResponse<T> {
   data?: T;
-  errors?: Array<{ message: string }>;
+  errors?: Array<{ message: string; path?: string[] }>;
+}
+
+interface AccountNode {
+  id: string;
+  businessName: string;
+  businessType: string;
 }
 
 export class SoundtrackService {
-  private token: string | null = null;
-  private tokenExpiry: number = 0;
+  private accountsCache: AccountNode[] | null = null;
+  private accountsCacheTime: number = 0;
+  private static CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-  private async getToken(): Promise<string> {
-    // Return cached token if still valid (with 5min buffer)
-    if (this.token && Date.now() < this.tokenExpiry - 300000) {
-      return this.token;
-    }
-
-    // Use pre-encoded Basic auth credentials or build from client ID/secret
-    const credentials = config.soundtrack.apiToken
+  private getAuthHeader(): string {
+    const token = config.soundtrack.apiToken
       || Buffer.from(
         `${config.soundtrack.clientId}:${config.soundtrack.clientSecret}`
       ).toString("base64");
 
-    const res = await fetch("https://accounts.soundtrackyourbrand.com/oauth/token", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: "grant_type=client_credentials",
-    });
-
-    if (!res.ok) {
-      throw new Error(`Token request failed: ${res.status} ${res.statusText}`);
-    }
-
-    const data = await res.json() as { access_token: string; expires_in?: number };
-    this.token = data.access_token;
-    this.tokenExpiry = Date.now() + (data.expires_in || 3600) * 1000;
-    return this.token!;
+    return `Basic ${token}`;
   }
 
   private async graphql<T>(query: string, variables?: Record<string, any>): Promise<T> {
-    const token = await this.getToken();
-
     const res = await fetch(config.soundtrack.apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        Authorization: this.getAuthHeader(),
       },
       body: JSON.stringify({ query, variables }),
     });
@@ -64,40 +47,71 @@ export class SoundtrackService {
     return json.data!;
   }
 
-  async searchAccounts(query: string): Promise<any[]> {
-    const data = await this.graphql<any>(
-      `query SearchAccounts($query: String!) {
-        accounts(filter: { name: { contains: $query } }, first: 20) {
-          edges {
-            node {
-              id
-              name
-              businessType
+  private async fetchAllAccounts(): Promise<AccountNode[]> {
+    // Return cached if fresh
+    if (this.accountsCache && Date.now() - this.accountsCacheTime < SoundtrackService.CACHE_TTL) {
+      return this.accountsCache;
+    }
+
+    const allAccounts: AccountNode[] = [];
+    let cursor: string | null = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      const data: any = await this.graphql<any>(
+        `query FetchAccounts($first: Int!, $after: String) {
+          me {
+            ... on PublicAPIClient {
+              accounts(first: $first, after: $after) {
+                edges { node { id businessName businessType } cursor }
+                pageInfo { hasNextPage }
+              }
             }
           }
-        }
-      }`,
-      { query }
-    );
+        }`,
+        { first: 100, after: cursor }
+      );
 
-    return data.accounts?.edges?.map((e: any) => e.node) || [];
+      const connection = data.me?.accounts;
+      const edges: any[] = connection?.edges || [];
+      for (const edge of edges) {
+        allAccounts.push(edge.node);
+        cursor = edge.cursor;
+      }
+      hasMore = connection?.pageInfo?.hasNextPage ?? false;
+    }
+
+    this.accountsCache = allAccounts;
+    this.accountsCacheTime = Date.now();
+    console.log(`Cached ${allAccounts.length} Soundtrack accounts`);
+    return allAccounts;
+  }
+
+  async searchAccounts(query: string): Promise<AccountNode[]> {
+    const allAccounts = await this.fetchAllAccounts();
+    const q = query.toLowerCase().trim();
+    return allAccounts
+      .filter((a) => a.businessName.toLowerCase().includes(q))
+      .slice(0, 20);
   }
 
   async getZones(accountId: string): Promise<any[]> {
     const data = await this.graphql<any>(
       `query GetZones($accountId: ID!) {
         account(id: $accountId) {
-          locations {
+          id
+          businessName
+          locations(first: 50) {
             edges {
               node {
                 id
                 name
-                soundZones {
+                soundZones(first: 50) {
                   edges {
                     node {
                       id
                       name
-                      playing {
+                      nowPlaying {
                         track {
                           name
                           artists { name }
@@ -125,10 +139,10 @@ export class SoundtrackService {
           name: zone.name,
           locationId: location.id,
           locationName: location.name,
-          nowPlaying: zone.playing?.track
+          nowPlaying: zone.nowPlaying?.track
             ? {
-                track: zone.playing.track.name,
-                artist: zone.playing.track.artists?.map((a: any) => a.name).join(", "),
+                track: zone.nowPlaying.track.name,
+                artist: zone.nowPlaying.track.artists?.map((a: any) => a.name).join(", "),
               }
             : null,
         });
@@ -146,7 +160,6 @@ export class SoundtrackService {
         setSoundZoneVolume(input: { soundZoneId: $soundZoneId, volume: $volume }) {
           soundZone {
             id
-            volume
           }
         }
       }`,
