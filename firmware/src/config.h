@@ -21,7 +21,10 @@
 #define DEVICE_ID_PREFIX   "esp32-"
 
 // Firmware version
-#define FW_VERSION         "2.0.0"
+#define FW_VERSION         "2.1.0"
+
+// NVS keys
+#define NVS_KEY_ACCOUNT    "account_id"
 
 // Provisioning
 #define AP_NAME_PREFIX     "AutoVolume-"

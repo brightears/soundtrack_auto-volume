@@ -18,10 +18,10 @@ bool provisioningInit(Arduino_GFX *gfx);
 // Start captive portal for WiFi setup
 bool startCaptivePortal(Arduino_GFX *gfx);
 
-// Get the server URL from NVS (fallback to DEFAULT_WS_HOST)
-String getServerUrl();
+// Get the account ID from NVS (empty string if not set)
+String getAccountId();
 
-// Erase stored WiFi + server URL (factory reset)
+// Erase stored WiFi + account ID (factory reset)
 void resetProvisioning();
 
 // Check if touch is held for factory reset (call during setup)

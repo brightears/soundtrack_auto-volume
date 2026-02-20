@@ -25,6 +25,7 @@ WebSocketsClient ws;
 
 static String deviceId;
 static String wsHost;
+static String accountId;
 static float currentDbFS = -60.0;
 static bool wsConnected = false;
 static bool wifiConnected = false;
@@ -115,9 +116,11 @@ void setup() {
     consecutiveWiFiFailures = 0;
     Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
 
-    // Get server URL from NVS
-    wsHost = getServerUrl();
+    // Server URL is hardcoded, account ID from NVS
+    wsHost = DEFAULT_WS_HOST;
+    accountId = getAccountId();
     Serial.printf("Server: %s\n", wsHost.c_str());
+    Serial.printf("Account: %s\n", accountId.length() > 0 ? accountId.c_str() : "(none)");
 
     initWebSocket();
 
@@ -152,7 +155,8 @@ void loop() {
       bool connected = startCaptivePortal(gfx);
       if (connected) {
         wifiConnected = true;
-        wsHost = getServerUrl();
+        wsHost = DEFAULT_WS_HOST;
+        accountId = getAccountId();
         initWebSocket();
         if (displayReady) {
           gfx->fillScreen(COLOR_BG);
@@ -182,7 +186,8 @@ void loop() {
     Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
     Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
 
-    wsHost = getServerUrl();
+    wsHost = DEFAULT_WS_HOST;
+    accountId = getAccountId();
     initWebSocket();
 
     if (displayReady) {
@@ -295,6 +300,21 @@ void drawStaticUI() {
   gfx->print("ID: ");
   gfx->setTextColor(COLOR_TEXT);
   gfx->print(deviceId.c_str());
+
+  // Account ID (if set)
+  if (accountId.length() > 0) {
+    gfx->setTextColor(COLOR_DIM);
+    gfx->setCursor(12, 398);
+    gfx->print("Acct: ");
+    gfx->setTextColor(COLOR_CYAN);
+    // Truncate long account IDs for display
+    if (accountId.length() > 30) {
+      gfx->print(accountId.substring(0, 27).c_str());
+      gfx->print("...");
+    } else {
+      gfx->print(accountId.c_str());
+    }
+  }
 }
 
 // --- Update dynamic parts of the display ---
@@ -404,21 +424,16 @@ void updateDisplay() {
   }
 
   // --- Uptime ---
-  gfx->fillRect(12, 398, 344, 40, COLOR_BG);
+  int uptimeY = accountId.length() > 0 ? 416 : 398;
+  gfx->fillRect(12, uptimeY, 344, 30, COLOR_BG);
   gfx->setTextSize(1);
   gfx->setTextColor(COLOR_DIM);
-  gfx->setCursor(12, 400);
+  gfx->setCursor(12, uptimeY);
   unsigned long uptimeSec = millis() / 1000;
   unsigned long h = uptimeSec / 3600;
   unsigned long m = (uptimeSec % 3600) / 60;
   unsigned long s = uptimeSec % 60;
-  gfx->printf("Uptime: %02lu:%02lu:%02lu", h, m, s);
-
-  // FW version
-  gfx->setCursor(12, 416);
-  gfx->printf("FW: %s", FW_VERSION);
-  gfx->setCursor(200, 416);
-  gfx->printf("RSSI: %d", WiFi.RSSI());
+  gfx->printf("Up: %02lu:%02lu:%02lu  FW: %s  %ddBm", h, m, s, FW_VERSION, WiFi.RSSI());
 }
 
 // --- ES8311 Codec Init ---
@@ -559,10 +574,14 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
         doc["type"] = "register";
         doc["deviceId"] = deviceId;
         doc["firmware"] = FW_VERSION;
+        if (accountId.length() > 0) {
+          doc["accountId"] = accountId;
+        }
         String json;
         serializeJson(doc, json);
         ws.sendTXT(json);
-        Serial.println("Sent register message");
+        Serial.printf("Sent register message (account: %s)\n",
+                       accountId.length() > 0 ? accountId.c_str() : "none");
       }
       break;
 

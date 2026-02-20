@@ -9,7 +9,7 @@
 
 static Preferences prefs;
 static const char* NVS_NAMESPACE = "autovolume";
-static const char* NVS_KEY_SERVER = "server_url";
+// NVS_KEY_ACCOUNT defined in config.h
 
 // Colors (matching main.cpp)
 #define COLOR_BG       0x0000
@@ -58,9 +58,9 @@ static void drawProvisioningScreen(Arduino_GFX *gfx, const char* apName) {
   gfx->setCursor(12, 276);
   gfx->print("   automatically");
   gfx->setCursor(12, 300);
-  gfx->print("3. Select your WiFi network");
+  gfx->print("3. Select your WiFi network,");
   gfx->setCursor(12, 316);
-  gfx->print("   and enter the password");
+  gfx->print("   enter password & Account ID");
 
   gfx->setTextColor(COLOR_YELLOW);
   gfx->setCursor(12, 360);
@@ -120,15 +120,15 @@ static void drawWiFiFailedScreen(Arduino_GFX *gfx) {
   gfx->print("Re-entering setup mode...");
 }
 
-String getServerUrl() {
+String getAccountId() {
   prefs.begin(NVS_NAMESPACE, true); // read-only
-  String url = prefs.getString(NVS_KEY_SERVER, DEFAULT_WS_HOST);
+  String id = prefs.getString(NVS_KEY_ACCOUNT, "");
   prefs.end();
-  return url;
+  return id;
 }
 
 void resetProvisioning() {
-  Serial.println("Factory reset: erasing WiFi + server URL");
+  Serial.println("Factory reset: erasing WiFi + account ID");
   prefs.begin(NVS_NAMESPACE, false);
   prefs.clear();
   prefs.end();
@@ -161,9 +161,9 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
 
   WiFiManager wm;
 
-  // Custom parameter for server URL
-  WiFiManagerParameter serverParam("server", "Server URL", DEFAULT_WS_HOST, 128);
-  wm.addParameter(&serverParam);
+  // Custom parameter for Account ID
+  WiFiManagerParameter accountParam("account", "Soundtrack Account ID", "", 128);
+  wm.addParameter(&accountParam);
 
   wm.setConfigPortalTimeout(PORTAL_TIMEOUT);
   wm.setConnectTimeout(20);
@@ -174,13 +174,13 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
   if (connected) {
     Serial.println("WiFi connected via portal!");
 
-    // Save server URL to NVS
-    String serverUrl = String(serverParam.getValue());
-    if (serverUrl.length() > 0) {
+    // Save Account ID to NVS
+    String accountId = String(accountParam.getValue());
+    if (accountId.length() > 0) {
       prefs.begin(NVS_NAMESPACE, false);
-      prefs.putString(NVS_KEY_SERVER, serverUrl);
+      prefs.putString(NVS_KEY_ACCOUNT, accountId);
       prefs.end();
-      Serial.printf("Server URL saved: %s\n", serverUrl.c_str());
+      Serial.printf("Account ID saved: %s\n", accountId.c_str());
     }
 
     return true;
