@@ -110,7 +110,7 @@ async function handleSoundLevel(msg: SoundLevelMessage): Promise<void> {
       sustainThreshold: config.sustainCount ?? 2,
     });
 
-    if (result.apiCalled) {
+    if (result.apiCalled && result.volume != null) {
       // Update stored volume
       await prisma.zoneConfig.update({
         where: { id: config.id },
