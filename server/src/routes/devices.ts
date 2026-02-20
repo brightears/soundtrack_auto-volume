@@ -4,10 +4,12 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 export const deviceRoutes = Router();
 
-// List all devices
-deviceRoutes.get("/", async (_req, res) => {
+// List devices (optionally filtered by account)
+deviceRoutes.get("/", async (req, res) => {
   try {
+    const accountId = req.query.account as string | undefined;
     const devices = await prisma.device.findMany({
+      where: accountId ? { soundtrackAccountId: accountId } : undefined,
       include: { configs: true },
       orderBy: { createdAt: "desc" },
     });

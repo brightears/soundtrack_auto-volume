@@ -21,6 +21,7 @@ interface RegisterMessage {
   type: "register";
   deviceId: string;
   firmware?: string;
+  accountId?: string;
 }
 
 type IncomingMessage = SoundLevelMessage | RegisterMessage;
@@ -66,7 +67,7 @@ export function setupWebSocket(server: http.Server): void {
 }
 
 async function handleRegister(ws: WebSocket, msg: RegisterMessage): Promise<void> {
-  await deviceManager.registerDevice(ws, msg.deviceId, msg.firmware);
+  await deviceManager.registerDevice(ws, msg.deviceId, msg.firmware, msg.accountId);
 
   // Send back registration confirmation + any existing configs
   const device = await prisma.device.findUnique({

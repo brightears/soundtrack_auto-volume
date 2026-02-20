@@ -1,10 +1,9 @@
 # Soundtrack Auto-Volume
 
 ## Project Overview
-Multi-component system: ESP32-S3 reads ambient sound levels via microphone, sends data to a backend server, which automatically adjusts music volume on Soundtrack Your Brand sound zones. Clients get a web frontend to configure which zones are auto-controlled.
+Multi-component system: ESP32-S3 reads ambient sound levels via microphone, sends data to a backend server, which automatically adjusts music volume on Soundtrack Your Brand sound zones. Customers get a web dashboard to configure which zones are auto-controlled.
 
-**Phase 1:** ESP32 mic -> Backend server -> Soundtrack API volume control + Client frontend
-**Phase 2:** Language detection and other audio intelligence features
+**Business model:** We sell ESP32 devices to customers, provide their Soundtrack Account ID + dashboard URL. Customer plugs in device, connects via captive portal (WiFi + Account ID), opens their scoped dashboard.
 
 ## System Architecture
 ```
@@ -20,6 +19,8 @@ ESP32 Device          Backend (Render)           Soundtrack API
 ## Live Deployment
 - **Server:** https://soundtrack-auto-volume.onrender.com
 - **WebSocket:** wss://soundtrack-auto-volume.onrender.com/ws
+- **Customer Dashboard:** https://soundtrack-auto-volume.onrender.com/?account=ACCOUNT_ID
+- **Admin Dashboard:** https://soundtrack-auto-volume.onrender.com (no params)
 - **API:** /api/devices, /api/configs, /api/soundtrack/accounts
 - **Render service:** srv-d6bim8d6ubrc73cl2890 (starter, Singapore)
 - **Render DB:** dpg-d6bim795pdvs73f7e68g-a (basic_256mb, Singapore)
@@ -35,7 +36,8 @@ ESP32 Device          Backend (Render)           Soundtrack API
 
 ### 2. Frontend (`/server/public/`) - COMPLETE
 - Single-page Alpine.js + Tailwind CSS (CDN, no build step)
-- Tabs: Devices, Configure, Monitor
+- **Customer mode** (`?account=xxx`): Single-page, no tabs, inline controls, auto-polling, zones auto-loaded from device's account
+- **Admin mode** (no params): 3-tab layout (Devices, Configure, Monitor) with full account search
 - Served as static files by Express
 
 ### 3. ESP32 Firmware (`/firmware`) - COMPILES & FLASHES
@@ -57,6 +59,14 @@ ESP32 Device          Backend (Render)           Soundtrack API
 - **Device ID:** esp32-ccba9711a79c (MAC: cc:ba:97:11:a7:9c)
 - IMPORTANT: ESP32-S3 only supports 2.4GHz WiFi (NOT 5GHz!)
 
+## Volume Algorithm
+- **EMA smoothing:** `smoothed = alpha * dbFS + (1-alpha) * smoothed_prev`
+- **dB mapping:** Linear interpolation between quietThresholdDb and loudThresholdDb
+- **Hysteresis:** Direction-based — change only if same direction (up/down) for N consecutive readings
+- **Rate limiting:** Max 1 API call per 2 seconds per zone
+- **Calibrated ranges:** ambient ~-78 dBFS, talking ~-50, loud ~-30
+- **Defaults:** minVol=4, maxVol=12, smoothing=0.2, sustain=3, quiet=-74dB, loud=-45dB
+
 ## Soundtrack API - IMPORTANT
 - **Auth:** Basic auth (`Authorization: Basic <token>`), NOT OAuth2 token exchange
 - The SOUNDTRACK_API_TOKEN is Base64-encoded client_id:client_secret
@@ -74,7 +84,7 @@ ESP32 Device          Backend (Render)           Soundtrack API
 
 ## Credentials & Secrets
 - ALL in `.env` (GITIGNORED) - NEVER commit
-- ESP32 WiFi creds in firmware `secrets.h` (GITIGNORED)
+- ESP32 WiFi creds managed by WiFiManager (stored in NVS)
 - GitHub: https://github.com/brightears/soundtrack_auto-volume.git
 
 ## Build Commands
@@ -83,8 +93,6 @@ ESP32 Device          Backend (Render)           Soundtrack API
 cd firmware && ~/.platformio/penv/bin/pio run                    # Build
 cd firmware && ~/.platformio/penv/bin/pio run --target upload    # Flash
 cd firmware && ~/.platformio/penv/bin/pio device monitor         # Serial monitor (115200)
-# Serial via Python (when pio monitor fails in pipes):
-~/.platformio/penv/bin/python3 -c "import serial,time; s=serial.Serial('/dev/cu.usbmodem2101',115200,timeout=1); [print(s.readline().decode('utf-8',errors='replace').strip()) for _ in range(50) if time.sleep(0.1) is None]; s.close()"
 
 # Server
 cd server && npm run dev                  # Development (tsx watch)
@@ -109,3 +117,4 @@ cd server && npx tsc --noEmit             # Type check only
 - `driver/i2s.h` is deprecated in v3.x but still compiles (warning only)
 - Arduino_SH8601 constructor has NO `bool ips` param — 4th arg is width, 5th is height
 - Upload port: `/dev/cu.usbmodem2101`
+- SYB manual volume changes NOT synced back — system overrides at next adjustment

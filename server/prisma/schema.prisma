@@ -8,17 +8,18 @@ datasource db {
 }
 
 model Device {
-  id          String       @id @default(uuid())
-  deviceId    String       @unique
-  name        String?
-  firmware    String?
-  isOnline    Boolean      @default(false)
-  isPaused    Boolean      @default(false)
-  lastSeen    DateTime?
-  lastDbLevel Float?
-  configs     ZoneConfig[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                  String       @id @default(uuid())
+  deviceId            String       @unique
+  name                String?
+  firmware            String?
+  soundtrackAccountId String?
+  isOnline            Boolean      @default(false)
+  isPaused            Boolean      @default(false)
+  lastSeen            DateTime?
+  lastDbLevel         Float?
+  configs             ZoneConfig[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 }
 
 model ZoneConfig {
