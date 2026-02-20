@@ -3,20 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soundtrack Auto-Volume</title>
+  <title>Auto-Volume | BMAsia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { orange: '#EFA634', 'orange-dark': '#d99530', dark: '#0f0f0f', navy: '#1a1a2e' }
+          }
+        }
+      }
+    }
+  </script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
     .db-bar { transition: width 0.3s ease; }
+    /* Customer mode brand styles */
+    .customer-mode { font-family: 'Inter', sans-serif; }
+    .glass {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    /* Custom range sliders — customer mode only */
+    .customer-mode input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+    .customer-mode input[type="range"]::-webkit-slider-track { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .customer-mode input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #EFA634; margin-top: -6px; box-shadow: 0 0 8px rgba(239,166,52,0.3); }
+    .customer-mode input[type="range"]::-moz-range-track { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; border: none; }
+    .customer-mode input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #EFA634; border: none; box-shadow: 0 0 8px rgba(239,166,52,0.3); }
+    .customer-mode input[type="range"]:focus { outline: none; }
+    .customer-mode input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 12px rgba(239,166,52,0.5); }
   </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen" x-data="app()" x-init="init()">
+<body :class="isCustomerMode ? 'bg-brand-dark customer-mode' : 'bg-gray-900'" class="text-gray-100 min-h-screen" x-data="app()" x-init="init()">
 
   <!-- Header -->
-  <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+  <header :class="isCustomerMode ? 'bg-brand-dark border-white/10' : 'bg-gray-800 border-gray-700'" class="border-b px-6 py-4">
     <div class="max-w-6xl mx-auto flex items-center justify-between">
-      <h1 class="text-xl font-bold text-white">Soundtrack Auto-Volume</h1>
+      <!-- Customer mode: BMAsia logo -->
+      <template x-if="isCustomerMode">
+        <div class="flex items-center gap-3">
+          <img src="/logo.png" alt="BMAsia" class="h-8">
+          <span class="text-gray-500 text-sm font-light tracking-wide">Auto-Volume</span>
+        </div>
+      </template>
+      <!-- Admin mode: text title -->
+      <template x-if="!isCustomerMode">
+        <h1 class="text-xl font-bold text-white">Soundtrack Auto-Volume</h1>
+      </template>
       <div class="flex gap-2 items-center">
         <!-- Admin tabs (hidden in customer mode) -->
         <template x-if="!isCustomerMode">
@@ -26,7 +66,7 @@
             <button @click="switchTab('monitor')" :class="tab === 'monitor' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Monitor</button>
           </div>
         </template>
-        <button @click="showHelp = !showHelp" :class="showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-3 py-2 rounded text-sm transition ml-2" title="Toggle help tips">?</button>
+        <button @click="showHelp = !showHelp" :class="isCustomerMode ? (showHelp ? 'bg-brand-orange/20 text-brand-orange border-brand-orange/50' : 'border-white/20 text-gray-400 hover:text-brand-orange hover:border-brand-orange/50') : (showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600')" class="px-3 py-2 rounded-lg text-sm transition ml-2 border border-transparent" title="Toggle help tips">?</button>
       </div>
     </div>
   </header>
@@ -36,24 +76,27 @@
     <!-- ==================== CUSTOMER MODE ==================== -->
     <template x-if="isCustomerMode">
       <div>
-        <!-- Help panel -->
-        <div x-show="showHelp" x-transition class="mb-6 bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 text-sm space-y-3">
-          <p class="text-blue-300 font-medium">How Auto-Volume works</p>
+        <!-- Subtle radial gradient overlay -->
+        <div class="fixed inset-0 pointer-events-none" style="background: radial-gradient(ellipse at top center, rgba(239,166,52,0.04) 0%, transparent 60%);"></div>
+
+        <!-- Help panel — orange accent -->
+        <div x-show="showHelp" x-transition class="mb-6 rounded-2xl p-5 text-sm space-y-3" style="background: rgba(239,166,52,0.05); border: 1px solid rgba(239,166,52,0.2);">
+          <p class="text-brand-orange font-medium">How Auto-Volume works</p>
           <p class="text-gray-400">The device's microphone measures ambient noise. When the room gets louder (more guests, conversations), the music volume goes up so it stays audible. When it gets quieter, the volume comes back down.</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-400">
-            <div><strong class="text-gray-300">Sensitivity</strong> &mdash; How much noise triggers a change. Low = only big shifts. High = reacts to conversations. <span class="text-blue-400">Recommended: Medium</span></div>
-            <div><strong class="text-gray-300">Reactivity</strong> &mdash; How fast volume adjusts. Low = smooth gradual changes. High = near-instant. <span class="text-blue-400">Recommended: Low-Medium</span></div>
-            <div><strong class="text-gray-300">Min Volume</strong> &mdash; Quietest music goes (0-16). <span class="text-blue-400">Recommended: 4-5</span></div>
-            <div><strong class="text-gray-300">Max Volume</strong> &mdash; Loudest music goes (0-16). <span class="text-blue-400">Recommended: 10-12</span></div>
+            <div><strong class="text-gray-300">Sensitivity</strong> &mdash; How much noise triggers a change. Low = only big shifts. High = reacts to conversations. <span class="text-brand-orange">Recommended: Medium</span></div>
+            <div><strong class="text-gray-300">Reactivity</strong> &mdash; How fast volume adjusts. Low = smooth gradual changes. High = near-instant. <span class="text-brand-orange">Recommended: Low-Medium</span></div>
+            <div><strong class="text-gray-300">Min Volume</strong> &mdash; Quietest music goes (0-16). <span class="text-brand-orange">Recommended: 4-5</span></div>
+            <div><strong class="text-gray-300">Max Volume</strong> &mdash; Loudest music goes (0-16). <span class="text-brand-orange">Recommended: 10-12</span></div>
           </div>
         </div>
 
         <!-- No devices state -->
         <div x-show="devices.length === 0" class="text-center py-16">
-          <h2 class="text-2xl font-bold text-white mb-3">Setting Up Your Auto-Volume</h2>
+          <h2 class="text-2xl font-semibold text-white mb-3">Setting Up Your Auto-Volume</h2>
           <p class="text-gray-400 mb-8 max-w-md mx-auto">Power on your device. It will create a WiFi network called <strong class="text-gray-300">AutoVolume-XXXX</strong>. Connect to it, enter your WiFi password and Account ID, then return here.</p>
           <div class="inline-flex items-center gap-2 text-gray-500 text-sm">
-            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+            <svg class="animate-spin h-4 w-4 text-brand-orange" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
             Waiting for device to connect...
           </div>
         </div>
@@ -61,36 +104,36 @@
         <!-- Device cards -->
         <div class="space-y-6">
           <template x-for="device in devices" :key="device.id">
-            <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div class="glass rounded-2xl overflow-hidden">
               <!-- Device header -->
               <div class="p-5">
                 <div class="flex items-center justify-between mb-4">
                   <div class="flex items-center gap-3">
-                    <div :class="device.isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'" class="w-3 h-3 rounded-full"></div>
+                    <div :class="device.isOnline ? 'bg-green-500/80 animate-pulse' : 'bg-red-500/80'" class="w-2.5 h-2.5 rounded-full"></div>
                     <div>
                       <div x-show="renamingDeviceId !== device.id" class="flex items-center gap-2">
                         <h2 class="text-lg font-semibold" x-text="deviceDisplayName(device)"></h2>
-                        <button @click="startRename(device)" class="text-gray-500 hover:text-gray-300">
+                        <button @click="startRename(device)" class="text-gray-500 hover:text-gray-300 transition">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </button>
                       </div>
                       <div x-show="renamingDeviceId === device.id" class="flex items-center gap-2">
-                        <input type="text" x-model="renameValue" @keydown.enter="saveRename(device)" @keydown.escape="renamingDeviceId = null" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white w-48">
+                        <input type="text" x-model="renameValue" @keydown.enter="saveRename(device)" @keydown.escape="renamingDeviceId = null" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm text-white w-48 focus:ring-1 focus:ring-brand-orange focus:border-brand-orange outline-none">
                         <button @click="saveRename(device)" class="text-green-400 text-xs">Save</button>
                         <button @click="renamingDeviceId = null" class="text-gray-400 text-xs">Cancel</button>
                       </div>
                       <p class="text-xs text-gray-500" x-text="device.isOnline ? 'Online' : 'Offline — last seen ' + timeAgo(device.lastSeen)"></p>
                     </div>
                   </div>
-                  <p class="text-2xl font-mono font-bold" :class="dbColor(device.lastDbLevel)" x-text="device.lastDbLevel !== null ? device.lastDbLevel.toFixed(1) + ' dB' : '--'"></p>
+                  <p class="text-2xl font-mono font-bold text-brand-orange" x-text="device.lastDbLevel !== null ? device.lastDbLevel.toFixed(1) + ' dB' : '--'"></p>
                 </div>
 
                 <!-- dB bar -->
                 <div x-show="device.lastDbLevel !== null" class="mb-2">
-                  <div class="flex justify-between text-xs text-gray-500 mb-1">
+                  <div class="flex justify-between text-xs text-gray-600 mb-1">
                     <span>-80 dB</span><span>-60</span><span>-40</span><span>-20 dB</span>
                   </div>
-                  <div class="h-3 bg-gray-700 rounded-full overflow-hidden">
+                  <div class="h-2.5 bg-white/5 rounded-full overflow-hidden">
                     <div class="db-bar h-full rounded-full" :class="dbColor(device.lastDbLevel)" :style="'width: ' + dbPercent(device.lastDbLevel) + '%'"></div>
                   </div>
                 </div>
@@ -98,23 +141,23 @@
 
               <!-- Zone configs -->
               <template x-for="cfg in (device.configs || [])" :key="cfg.id">
-                <div class="border-t border-gray-700 p-5">
+                <div class="border-t border-white/10 p-5">
                   <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
                       <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
                       <template x-if="cfg.isPaused">
-                        <span class="text-xs bg-yellow-600/30 text-yellow-400 px-2 py-0.5 rounded">PAUSED</span>
+                        <span class="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-md">PAUSED</span>
                       </template>
                     </div>
                     <div class="flex items-center gap-3">
                       <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" :checked="cfg.isEnabled" @change="toggleConfig(cfg)" class="sr-only peer">
-                        <div class="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <div class="w-9 h-5 bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-orange"></div>
                       </label>
                       <button @click="toggleZonePause(cfg)" :class="cfg.isPaused ? 'text-green-400 hover:text-green-300' : 'text-yellow-400 hover:text-yellow-300'" class="text-xs font-medium">
                         <span x-text="cfg.isPaused ? 'Resume' : 'Pause'"></span>
                       </button>
-                      <button @click="deleteConfig(cfg.id, device)" class="text-red-400 hover:text-red-300 text-xs">Remove</button>
+                      <button @click="deleteConfig(cfg.id, device)" class="text-gray-500 hover:text-red-400 text-xs transition">Remove</button>
                     </div>
                   </div>
 
@@ -123,7 +166,7 @@
                     <div class="flex items-center gap-3">
                       <div class="flex items-center gap-0.5 flex-1">
                         <template x-for="i in 17" :key="i">
-                          <div class="flex-1 h-5 rounded-sm" :class="(i-1) <= cfg.currentVolume ? 'bg-indigo-500' : 'bg-gray-600'"></div>
+                          <div class="flex-1 h-5 rounded-sm transition-colors" :class="(i-1) <= cfg.currentVolume ? 'bg-brand-orange' : 'bg-white/10'"></div>
                         </template>
                       </div>
                       <span class="text-lg font-mono font-bold w-8 text-right" x-text="cfg.currentVolume"></span>
@@ -151,11 +194,11 @@
                     <div class="grid grid-cols-2 gap-4">
                       <div>
                         <label class="text-xs text-gray-400">Min Volume</label>
-                        <input type="number" :value="cfg.minVolume" @change="quickUpdateField(cfg, 'minVolume', parseInt($event.target.value))" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 w-full text-white text-sm">
+                        <input type="number" :value="cfg.minVolume" @change="quickUpdateField(cfg, 'minVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 w-full text-white text-sm focus:ring-1 focus:ring-brand-orange focus:border-brand-orange outline-none">
                       </div>
                       <div>
                         <label class="text-xs text-gray-400">Max Volume</label>
-                        <input type="number" :value="cfg.maxVolume" @change="quickUpdateField(cfg, 'maxVolume', parseInt($event.target.value))" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 w-full text-white text-sm">
+                        <input type="number" :value="cfg.maxVolume" @change="quickUpdateField(cfg, 'maxVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 w-full text-white text-sm focus:ring-1 focus:ring-brand-orange focus:border-brand-orange outline-none">
                       </div>
                     </div>
                   </div>
@@ -163,21 +206,21 @@
               </template>
 
               <!-- Add Zone button -->
-              <div class="border-t border-gray-700 p-4">
+              <div class="border-t border-white/10 p-4">
                 <template x-if="!addingZoneForDevice || addingZoneForDevice !== device.id">
-                  <button @click="startAddZone(device)" class="w-full py-2 rounded border border-dashed border-gray-600 text-gray-400 hover:text-gray-300 hover:border-gray-500 text-sm transition">
+                  <button @click="startAddZone(device)" class="w-full py-2 rounded-lg border border-dashed border-white/20 text-gray-500 hover:text-brand-orange hover:border-brand-orange/50 text-sm transition">
                     + Add Zone
                   </button>
                 </template>
                 <template x-if="addingZoneForDevice === device.id">
                   <div class="space-y-3">
                     <div x-show="customerZones.length === 0" class="text-center py-4 text-gray-500 text-sm">
-                      <svg class="animate-spin h-4 w-4 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                      <svg class="animate-spin h-4 w-4 mx-auto mb-2 text-brand-orange" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                       Loading zones...
                     </div>
                     <div x-show="customerZones.length > 0" class="space-y-2 max-h-48 overflow-y-auto">
                       <template x-for="z in customerZones" :key="z.id">
-                        <button @click="addZoneToDevice(device, z)" class="w-full text-left bg-gray-700 hover:bg-gray-600 rounded p-3 text-sm transition">
+                        <button @click="addZoneToDevice(device, z)" class="w-full text-left bg-white/5 hover:bg-white/10 rounded-lg p-3 text-sm transition border border-white/5 hover:border-white/10">
                           <p class="font-medium" x-text="z.name"></p>
                           <p class="text-xs text-gray-400" x-text="z.locationName"></p>
                         </button>
@@ -189,8 +232,8 @@
               </div>
 
               <!-- Reset device -->
-              <div class="border-t border-gray-700 p-4 flex justify-end">
-                <button @click="resetDevice(device)" class="text-xs text-gray-500 hover:text-red-400 transition">Reset Device</button>
+              <div class="border-t border-white/10 p-4 flex justify-end">
+                <button @click="resetDevice(device)" class="text-xs text-gray-600 hover:text-red-400 transition">Reset Device</button>
               </div>
             </div>
           </template>
