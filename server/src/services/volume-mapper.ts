@@ -6,6 +6,7 @@ interface ZoneState {
   lastApiCallTime: number;
   sustainCount: number;
   pendingVolume: number | null;
+  pendingDirection: number | null; // 1 = up, -1 = down
 }
 
 export class VolumeMapper {
@@ -46,6 +47,7 @@ export class VolumeMapper {
         lastApiCallTime: 0,
         sustainCount: 0,
         pendingVolume: null,
+        pendingDirection: null,
       };
       this.zoneStates.set(zoneId, state);
     }
@@ -64,16 +66,21 @@ export class VolumeMapper {
     );
 
     // 3. Apply hysteresis - only change if diff >= 1 and sustained for 2+ readings
+    //    Use direction-based tracking instead of exact-match to handle gradual EMA drift
     const volumeDiff = Math.abs(mappedVolume - state.currentVolume);
     if (volumeDiff >= 1) {
-      if (state.pendingVolume === mappedVolume) {
+      const direction = mappedVolume > state.currentVolume ? 1 : -1;
+      if (state.pendingDirection === direction) {
         state.sustainCount++;
+        state.pendingVolume = mappedVolume; // always track latest target
       } else {
+        state.pendingDirection = direction;
         state.pendingVolume = mappedVolume;
         state.sustainCount = 1;
       }
     } else {
       state.pendingVolume = null;
+      state.pendingDirection = null;
       state.sustainCount = 0;
     }
 
@@ -93,6 +100,7 @@ export class VolumeMapper {
           console.error(`Failed to set volume for zone ${zoneId}:`, err);
         }
         state.pendingVolume = null;
+        state.pendingDirection = null;
         state.sustainCount = 0;
       }
     }
