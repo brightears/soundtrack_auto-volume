@@ -9,7 +9,7 @@
 
 #include "pins.h"
 #include "config.h"
-#include "secrets.h"
+#include "provisioning.h"
 
 // --- Display (QSPI SH8601 AMOLED) ---
 Arduino_DataBus *qspi_bus = new Arduino_ESP32QSPI(
@@ -24,6 +24,7 @@ Adafruit_XCA9554 expander;
 WebSocketsClient ws;
 
 static String deviceId;
+static String wsHost;
 static float currentDbFS = -60.0;
 static bool wsConnected = false;
 static bool wifiConnected = false;
@@ -32,6 +33,7 @@ static unsigned long lastDbSend = 0;
 static unsigned long lastDbCalc = 0;
 static unsigned long lastDisplayUpdate = 0;
 static unsigned long lastWiFiRetry = 0;
+static int consecutiveWiFiFailures = 0;
 
 #define I2S_PORT I2S_NUM_0
 #define DISPLAY_UPDATE_INTERVAL 200  // ms between display redraws
@@ -54,8 +56,6 @@ void initTCA9554();
 void initES8311();
 void initI2S();
 void initDisplay();
-void initWiFi();
-void checkWiFi();
 void initWebSocket();
 void calculateDb();
 void sendSoundLevel();
@@ -85,13 +85,50 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n=== Soundtrack Auto-Volume ESP32 ===");
+  Serial.printf("Firmware: %s\n", FW_VERSION);
 
   initI2C();
   initTCA9554();
   initDisplay();
+
+  // Generate device ID from MAC
+  WiFi.mode(WIFI_STA);
+  delay(100);
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char macStr[13];
+  snprintf(macStr, sizeof(macStr), "%02x%02x%02x%02x%02x%02x",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  deviceId = String(DEVICE_ID_PREFIX) + macStr;
+  Serial.printf("Device ID: %s\n", deviceId.c_str());
+
+  // Check for factory reset (touch held at boot)
+  checkTouchReset(gfx);
+
   initES8311();
   initI2S();
-  initWiFi();
+
+  // WiFi provisioning (replaces hardcoded initWiFi)
+  bool connected = provisioningInit(gfx);
+  if (connected) {
+    wifiConnected = true;
+    consecutiveWiFiFailures = 0;
+    Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
+
+    // Get server URL from NVS
+    wsHost = getServerUrl();
+    Serial.printf("Server: %s\n", wsHost.c_str());
+
+    initWebSocket();
+
+    // Draw normal UI
+    if (displayReady) {
+      gfx->fillScreen(COLOR_BG);
+      drawStaticUI();
+    }
+  } else {
+    Serial.println("WiFi not connected - will retry in loop");
+  }
 
   Serial.println("Setup complete!");
 }
@@ -105,11 +142,32 @@ void loop() {
     if (wifiConnected) {
       Serial.println("WiFi lost!");
       wifiConnected = false;
+      consecutiveWiFiFailures++;
     }
+
+    // After too many failures, re-enter provisioning
+    if (consecutiveWiFiFailures >= MAX_WIFI_FAILURES) {
+      Serial.println("Too many WiFi failures, re-entering setup...");
+      consecutiveWiFiFailures = 0;
+      bool connected = startCaptivePortal(gfx);
+      if (connected) {
+        wifiConnected = true;
+        wsHost = getServerUrl();
+        initWebSocket();
+        if (displayReady) {
+          gfx->fillScreen(COLOR_BG);
+          drawStaticUI();
+        }
+      }
+      return;
+    }
+
     if (now - lastWiFiRetry >= WIFI_RETRY_DELAY) {
       lastWiFiRetry = now;
-      checkWiFi();
+      Serial.printf("WiFi retry... (failures: %d/%d)\n", consecutiveWiFiFailures, MAX_WIFI_FAILURES);
+      WiFi.reconnect();
     }
+
     // Still update display while waiting for WiFi
     if (displayReady && now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
       lastDisplayUpdate = now;
@@ -120,9 +178,17 @@ void loop() {
 
   if (!wifiConnected) {
     wifiConnected = true;
+    consecutiveWiFiFailures = 0;
     Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
     Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
+
+    wsHost = getServerUrl();
     initWebSocket();
+
+    if (displayReady) {
+      gfx->fillScreen(COLOR_BG);
+      drawStaticUI();
+    }
   }
 
   ws.loop();
@@ -191,11 +257,10 @@ void initDisplay() {
   gfx->fillScreen(COLOR_BG);
   displayReady = true;
 
-  drawStaticUI();
   Serial.println("AMOLED display OK");
 }
 
-// --- Draw static parts of the UI (called once) ---
+// --- Draw static parts of the UI (called once after WiFi connects) ---
 void drawStaticUI() {
   // Header bar
   gfx->fillRect(0, 0, LCD_WIDTH, 40, COLOR_HEADER);
@@ -235,11 +300,9 @@ void drawStaticUI() {
 // --- Update dynamic parts of the display ---
 void updateDisplay() {
   // --- dB value (large) ---
-  // Clear the dB number area
   gfx->fillRect(12, 72, 344, 60, COLOR_BG);
   gfx->setTextSize(5);
 
-  // Color based on level
   uint16_t dbColor;
   if (currentDbFS > -15) {
     dbColor = COLOR_RED;
@@ -269,21 +332,18 @@ void updateDisplay() {
   int barW = LCD_WIDTH - 24;
   int barH = 30;
 
-  // Map dBFS (-90 to 0) to bar width
   float normalized = (currentDbFS + 90.0f) / 90.0f;
   if (normalized < 0) normalized = 0;
   if (normalized > 1) normalized = 1;
   int fillW = (int)(normalized * barW);
 
-  // Bar background
   gfx->fillRect(barX, barY, barW, barH, COLOR_BAR_BG);
 
-  // Filled portion with gradient color
   if (fillW > 0) {
     uint16_t barColor;
-    if (normalized > 0.83f) barColor = COLOR_RED;       // > -15 dBFS
-    else if (normalized > 0.67f) barColor = COLOR_ORANGE; // > -30 dBFS
-    else if (normalized > 0.44f) barColor = COLOR_YELLOW; // > -50 dBFS
+    if (normalized > 0.83f) barColor = COLOR_RED;
+    else if (normalized > 0.67f) barColor = COLOR_ORANGE;
+    else if (normalized > 0.44f) barColor = COLOR_YELLOW;
     else barColor = COLOR_GREEN;
     gfx->fillRect(barX, barY, fillW, barH, barColor);
   }
@@ -321,7 +381,6 @@ void updateDisplay() {
   if (wifiConnected) {
     gfx->setTextColor(COLOR_GREEN);
     gfx->print("Connected");
-    // RSSI on next line
     gfx->setTextSize(1);
     gfx->setTextColor(COLOR_DIM);
     gfx->setCursor(12, 300);
@@ -357,7 +416,7 @@ void updateDisplay() {
 
   // FW version
   gfx->setCursor(12, 416);
-  gfx->print("FW: 1.0.0");
+  gfx->printf("FW: %s", FW_VERSION);
   gfx->setCursor(200, 416);
   gfx->printf("RSSI: %d", WiFi.RSSI());
 }
@@ -469,87 +528,14 @@ const char* wifiStatusStr(wl_status_t status) {
   }
 }
 
-// --- WiFi event callback ---
-void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
-  switch (event) {
-    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
-      Serial.println("[WiFi] Connected to AP!");
-      break;
-    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-      Serial.printf("[WiFi] Disconnected - reason: %d\n",
-                    info.wifi_sta_disconnected.reason);
-      break;
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-      Serial.printf("[WiFi] Got IP: %s\n", WiFi.localIP().toString().c_str());
-      break;
-    default:
-      break;
-  }
-}
-
-// --- WiFi Init ---
-void initWiFi() {
-  WiFi.onEvent(onWiFiEvent);
-  WiFi.disconnect(true);
-  delay(100);
-  WiFi.mode(WIFI_STA);
-  delay(100);
-
-  // Generate device ID from MAC (must be after WiFi.mode)
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  char macStr[13];
-  snprintf(macStr, sizeof(macStr), "%02x%02x%02x%02x%02x%02x",
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  deviceId = String(DEVICE_ID_PREFIX) + macStr;
-  Serial.printf("Device ID: %s\n", deviceId.c_str());
-
-  Serial.printf("Connecting to WiFi: '%s'\n", WIFI_SSID);
-  WiFi.setAutoReconnect(true);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    wifiConnected = true;
-    Serial.printf("\nWiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
-    Serial.printf("RSSI: %d dBm, Channel: %d\n", WiFi.RSSI(), WiFi.channel());
-    initWebSocket();
-  } else {
-    Serial.printf("\nWiFi not connected yet (status: %s) - will keep retrying\n", wifiStatusStr(WiFi.status()));
-  }
-}
-
-// --- WiFi reconnect check ---
-void checkWiFi() {
-  Serial.printf("WiFi retry... (status: %s)\n", wifiStatusStr(WiFi.status()));
-  WiFi.disconnect(true);
-  delay(100);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  for (int i = 0; i < 20; i++) {
-    delay(500);
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.printf("WiFi reconnected! IP: %s\n", WiFi.localIP().toString().c_str());
-      return;
-    }
-  }
-  Serial.printf("WiFi retry failed (status: %s)\n", wifiStatusStr(WiFi.status()));
-}
-
 // --- WebSocket Init ---
 void initWebSocket() {
-  Serial.println("Init WebSocket...");
+  Serial.printf("Init WebSocket to %s...\n", wsHost.c_str());
 
   if (WS_USE_SSL) {
-    ws.beginSSL(WS_HOST, WS_PORT, WS_PATH);
+    ws.beginSSL(wsHost.c_str(), WS_PORT, WS_PATH);
   } else {
-    ws.begin(WS_HOST, WS_PORT, WS_PATH);
+    ws.begin(wsHost.c_str(), WS_PORT, WS_PATH);
   }
 
   ws.onEvent(webSocketEvent);
@@ -572,7 +558,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
         JsonDocument doc;
         doc["type"] = "register";
         doc["deviceId"] = deviceId;
-        doc["firmware"] = "1.0.0";
+        doc["firmware"] = FW_VERSION;
         String json;
         serializeJson(doc, json);
         ws.sendTXT(json);

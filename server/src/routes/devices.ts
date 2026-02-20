@@ -42,6 +42,38 @@ deviceRoutes.delete("/:id", async (req, res) => {
   }
 });
 
+// Rename device
+deviceRoutes.patch("/:id/name", async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (typeof name !== "string") return res.status(400).json({ error: "name required" });
+
+    const device = await prisma.device.update({
+      where: { id: req.params.id },
+      data: { name },
+    });
+    res.json(device);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to rename device" });
+  }
+});
+
+// Pause/resume device
+deviceRoutes.patch("/:id/pause", async (req, res) => {
+  try {
+    const { isPaused } = req.body;
+    if (typeof isPaused !== "boolean") return res.status(400).json({ error: "isPaused (boolean) required" });
+
+    const device = await prisma.device.update({
+      where: { id: req.params.id },
+      data: { isPaused },
+    });
+    res.json(device);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update device pause state" });
+  }
+});
+
 // Register new device (also used by ESP32 via WebSocket, but available via REST too)
 deviceRoutes.post("/", async (req, res) => {
   try {

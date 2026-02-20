@@ -66,7 +66,7 @@ export function setupWebSocket(server: http.Server): void {
 }
 
 async function handleRegister(ws: WebSocket, msg: RegisterMessage): Promise<void> {
-  await deviceManager.registerDevice(ws, msg.deviceId);
+  await deviceManager.registerDevice(ws, msg.deviceId, msg.firmware);
 
   // Send back registration confirmation + any existing configs
   const device = await prisma.device.findUnique({
@@ -93,9 +93,12 @@ async function handleSoundLevel(msg: SoundLevelMessage): Promise<void> {
   });
   if (!device) return;
 
-  // Get enabled configs for this device
+  // Skip processing if device is globally paused
+  if (device.isPaused) return;
+
+  // Get enabled and not-paused configs for this device
   const configs = await prisma.zoneConfig.findMany({
-    where: { deviceId: device.id, isEnabled: true },
+    where: { deviceId: device.id, isEnabled: true, isPaused: false },
   });
 
   // Process each zone config

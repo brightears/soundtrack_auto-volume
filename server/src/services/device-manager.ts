@@ -12,15 +12,15 @@ interface ConnectedDevice {
 export class DeviceManager {
   private devices: Map<string, ConnectedDevice> = new Map();
 
-  async registerDevice(ws: WebSocket, deviceId: string): Promise<void> {
+  async registerDevice(ws: WebSocket, deviceId: string, firmware?: string): Promise<void> {
     // Store in memory
     this.devices.set(deviceId, { ws, deviceId, lastSeen: new Date() });
 
     // Upsert in database
     await prisma.device.upsert({
       where: { deviceId },
-      update: { isOnline: true, lastSeen: new Date() },
-      create: { deviceId, isOnline: true, lastSeen: new Date() },
+      update: { isOnline: true, lastSeen: new Date(), ...(firmware && { firmware }) },
+      create: { deviceId, isOnline: true, lastSeen: new Date(), ...(firmware && { firmware }) },
     });
 
     console.log(`Device registered: ${deviceId} (${this.devices.size} total)`);

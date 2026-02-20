@@ -11,7 +11,9 @@ model Device {
   id          String       @id @default(uuid())
   deviceId    String       @unique
   name        String?
+  firmware    String?
   isOnline    Boolean      @default(false)
+  isPaused    Boolean      @default(false)
   lastSeen    DateTime?
   lastDbLevel Float?
   configs     ZoneConfig[]
@@ -28,6 +30,7 @@ model ZoneConfig {
   soundtrackZoneId      String
   soundtrackZoneName    String?
   isEnabled             Boolean  @default(false)
+  isPaused              Boolean  @default(false)
   minVolume             Int      @default(2)
   maxVolume             Int      @default(14)
   quietThresholdDb      Float    @default(-70)
