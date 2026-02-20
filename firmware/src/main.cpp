@@ -398,9 +398,13 @@ void initES8311() {
   es8311Write(0x13, 0x10);
   es8311Write(0x14, 0x1A);
 
-  es8311Write(0x1C, 0x6A);
-  es8311Write(0x16, 0x24);
+  // ADC (mic) registers - CRITICAL for microphone to work
+  es8311Write(0x15, 0x40);  // ADC ramp rate
+  es8311Write(0x16, 0x04);  // Mic PGA gain: 4 = 24dB (range: 0=0dB to 7=42dB)
+  es8311Write(0x17, 0xBF);  // ADC enable + config (WITHOUT this, ADC stays off!)
+  es8311Write(0x1C, 0x6A);  // ADC HPF config
 
+  // DAC registers
   es8311Write(0x32, 0xBF);
   es8311Write(0x37, 0x08);
 
