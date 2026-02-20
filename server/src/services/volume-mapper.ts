@@ -30,6 +30,7 @@ export class VolumeMapper {
       quietThresholdDb: number;
       loudThresholdDb: number;
       smoothingFactor: number;
+      sustainThreshold: number;
     }
   ): Promise<{ volume: number; apiCalled: boolean }> {
     if (!config.isEnabled) {
@@ -79,7 +80,7 @@ export class VolumeMapper {
     let apiCalled = false;
 
     // Only apply change after 2+ sustained readings
-    if (state.sustainCount >= 2 && state.pendingVolume !== null) {
+    if (state.sustainCount >= config.sustainThreshold && state.pendingVolume !== null) {
       const now = Date.now();
       // Rate limit: max 1 API call per 2 seconds per zone
       if (now - state.lastApiCallTime >= 2000) {

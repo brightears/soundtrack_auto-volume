@@ -2,11 +2,14 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import path from "path";
+import { PrismaClient } from "@prisma/client";
 import { config } from "./config";
 import { setupWebSocket } from "./websocket/handler";
 import { deviceRoutes } from "./routes/devices";
 import { configRoutes } from "./routes/configs";
 import { soundtrackRoutes } from "./routes/soundtrack";
+
+const prisma = new PrismaClient();
 
 const app = express();
 const server = http.createServer(app);
@@ -35,6 +38,14 @@ app.get("*", (_req, res) => {
 
 // WebSocket server
 setupWebSocket(server);
+
+// One-time migration: fix miscalibrated thresholds from old defaults
+prisma.zoneConfig.updateMany({
+  where: { quietThresholdDb: -40, loudThresholdDb: -10 },
+  data: { quietThresholdDb: -70, loudThresholdDb: -40 },
+}).then(r => {
+  if (r.count > 0) console.log(`Migrated ${r.count} config(s) to calibrated thresholds`);
+}).catch(console.error);
 
 // Start server
 server.listen(config.port, () => {

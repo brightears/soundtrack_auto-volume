@@ -32,6 +32,7 @@ configRoutes.post("/", async (req, res) => {
       quietThresholdDb,
       loudThresholdDb,
       smoothingFactor,
+      sustainCount,
     } = req.body;
 
     if (!deviceId || !soundtrackAccountId || !soundtrackZoneId) {
@@ -48,9 +49,10 @@ configRoutes.post("/", async (req, res) => {
         isEnabled: isEnabled ?? false,
         minVolume: minVolume ?? 2,
         maxVolume: maxVolume ?? 14,
-        quietThresholdDb: quietThresholdDb ?? -40,
-        loudThresholdDb: loudThresholdDb ?? -10,
+        quietThresholdDb: quietThresholdDb ?? -70,
+        loudThresholdDb: loudThresholdDb ?? -40,
         smoothingFactor: smoothingFactor ?? 0.3,
+        sustainCount: sustainCount ?? 2,
       },
     });
     res.json(config);
@@ -72,6 +74,7 @@ configRoutes.put("/:id", async (req, res) => {
       quietThresholdDb,
       loudThresholdDb,
       smoothingFactor,
+      sustainCount,
       soundtrackAccountId,
       soundtrackAccountName,
       soundtrackZoneId,
@@ -87,6 +90,7 @@ configRoutes.put("/:id", async (req, res) => {
         ...(quietThresholdDb !== undefined && { quietThresholdDb }),
         ...(loudThresholdDb !== undefined && { loudThresholdDb }),
         ...(smoothingFactor !== undefined && { smoothingFactor }),
+        ...(sustainCount !== undefined && { sustainCount }),
         ...(soundtrackAccountId !== undefined && { soundtrackAccountId }),
         ...(soundtrackAccountName !== undefined && { soundtrackAccountName }),
         ...(soundtrackZoneId !== undefined && { soundtrackZoneId }),

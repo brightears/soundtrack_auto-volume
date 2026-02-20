@@ -107,6 +107,7 @@ async function handleSoundLevel(msg: SoundLevelMessage): Promise<void> {
       quietThresholdDb: config.quietThresholdDb,
       loudThresholdDb: config.loudThresholdDb,
       smoothingFactor: config.smoothingFactor,
+      sustainThreshold: config.sustainCount ?? 2,
     });
 
     if (result.apiCalled) {

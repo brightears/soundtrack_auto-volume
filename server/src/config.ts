@@ -21,8 +21,8 @@ export const config = {
     updateIntervalMs: 2000, // Min time between API calls per zone
     defaultMin: 2,
     defaultMax: 14,
-    defaultQuietDb: -40,
-    defaultLoudDb: -10,
+    defaultQuietDb: -70,
+    defaultLoudDb: -40,
     defaultSmoothing: 0.3,
   },
 } as const;

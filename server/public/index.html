@@ -89,36 +89,83 @@
         <div x-show="deviceConfigs.length === 0" class="text-gray-500 text-sm">No zone configs yet. Add one below.</div>
         <div class="grid gap-3">
           <template x-for="cfg in deviceConfigs" :key="cfg.id">
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <div class="flex items-center justify-between mb-3">
-                <div>
-                  <p class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></p>
-                  <p class="text-sm text-gray-400" x-text="cfg.soundtrackAccountName || cfg.soundtrackAccountId"></p>
+            <div class="bg-gray-800 rounded-lg border border-gray-700">
+              <!-- Collapsed header -->
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <div>
+                    <p class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></p>
+                    <p class="text-sm text-gray-400" x-text="cfg.soundtrackAccountName || cfg.soundtrackAccountId"></p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" :checked="cfg.isEnabled" @change="toggleConfig(cfg)" class="sr-only peer">
+                      <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                    <button @click="toggleEditConfig(cfg)" :class="editingConfigId === cfg.id ? 'text-indigo-400' : 'text-gray-400 hover:text-gray-300'" class="text-sm">Settings</button>
+                    <button @click="deleteConfig(cfg.id)" class="text-red-400 hover:text-red-300 text-sm">Delete</button>
+                  </div>
                 </div>
-                <div class="flex items-center gap-3">
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" :checked="cfg.isEnabled" @change="toggleConfig(cfg)" class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
-                  <button @click="deleteConfig(cfg.id)" class="text-red-400 hover:text-red-300 text-sm">Delete</button>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <span class="text-gray-400">Volume:</span>
+                    <span x-text="cfg.minVolume + ' - ' + cfg.maxVolume"></span>
+                  </div>
+                  <div>
+                    <span class="text-gray-400">Sensitivity:</span>
+                    <span x-text="sensitivityLabel(paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb))"></span>
+                  </div>
+                  <div>
+                    <span class="text-gray-400">Reactivity:</span>
+                    <span x-text="reactivityLabel(paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2))"></span>
+                  </div>
+                  <div>
+                    <span class="text-gray-400">Current Vol:</span>
+                    <span x-text="cfg.currentVolume"></span>
+                  </div>
                 </div>
               </div>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <span class="text-gray-400">Volume Range:</span>
-                  <span x-text="cfg.minVolume + ' - ' + cfg.maxVolume"></span>
+
+              <!-- Expanded settings panel -->
+              <div x-show="editingConfigId === cfg.id" x-transition class="border-t border-gray-700 p-4 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm text-gray-400 mb-1">Min Volume (0-16)</label>
+                    <input type="number" x-model.number="editConfig.minVolume" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 w-full text-white">
+                  </div>
+                  <div>
+                    <label class="block text-sm text-gray-400 mb-1">Max Volume (0-16)</label>
+                    <input type="number" x-model.number="editConfig.maxVolume" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 w-full text-white">
+                  </div>
                 </div>
                 <div>
-                  <span class="text-gray-400">Quiet:</span>
-                  <span x-text="cfg.quietThresholdDb + ' dB'"></span>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-sm text-gray-400">Sensitivity</label>
+                    <span class="text-sm text-gray-300" x-text="sensitivityLabel(editConfig.sensitivity)"></span>
+                  </div>
+                  <input type="range" x-model.number="editConfig.sensitivity" min="1" max="5" step="1" class="w-full">
+                  <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Needs loud noise</span>
+                    <span>Reacts to quiet talking</span>
+                  </div>
                 </div>
                 <div>
-                  <span class="text-gray-400">Loud:</span>
-                  <span x-text="cfg.loudThresholdDb + ' dB'"></span>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-sm text-gray-400">Reactivity</label>
+                    <span class="text-sm text-gray-300" x-text="reactivityLabel(editConfig.reactivity)"></span>
+                  </div>
+                  <input type="range" x-model.number="editConfig.reactivity" min="1" max="5" step="1" class="w-full">
+                  <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Smooth / gradual</span>
+                    <span>Fast / instant</span>
+                  </div>
                 </div>
-                <div>
-                  <span class="text-gray-400">Current Vol:</span>
-                  <span x-text="cfg.currentVolume"></span>
+                <div class="flex gap-3 pt-2">
+                  <button @click="saveConfigSettings(cfg)" :disabled="savingConfig" class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-600 px-4 py-2 rounded text-sm font-medium transition">
+                    <span x-show="!savingConfig">Save</span>
+                    <span x-show="savingConfig">Saving...</span>
+                  </button>
+                  <button @click="editingConfigId = null" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm transition">Cancel</button>
                 </div>
               </div>
             </div>
@@ -164,7 +211,7 @@
           </select>
         </div>
 
-        <!-- Thresholds -->
+        <!-- Settings -->
         <div x-show="selectedZoneId" class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
@@ -176,20 +223,27 @@
               <input type="number" x-model.number="newConfig.maxVolume" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 w-full text-white">
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm text-gray-400 mb-1">Quiet Threshold (dBFS)</label>
-              <input type="number" x-model.number="newConfig.quietThresholdDb" step="1" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 w-full text-white">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-sm text-gray-400">Sensitivity</label>
+              <span class="text-sm text-gray-300" x-text="sensitivityLabel(newConfig.sensitivity)"></span>
             </div>
-            <div>
-              <label class="block text-sm text-gray-400 mb-1">Loud Threshold (dBFS)</label>
-              <input type="number" x-model.number="newConfig.loudThresholdDb" step="1" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 w-full text-white">
+            <input type="range" x-model.number="newConfig.sensitivity" min="1" max="5" step="1" class="w-full">
+            <div class="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Needs loud noise</span>
+              <span>Reacts to quiet talking</span>
             </div>
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">Smoothing Factor (0.1-0.9)</label>
-            <input type="range" x-model.number="newConfig.smoothingFactor" min="0.1" max="0.9" step="0.1" class="w-full max-w-md">
-            <span class="text-sm text-gray-400 ml-2" x-text="newConfig.smoothingFactor"></span>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-sm text-gray-400">Reactivity</label>
+              <span class="text-sm text-gray-300" x-text="reactivityLabel(newConfig.reactivity)"></span>
+            </div>
+            <input type="range" x-model.number="newConfig.reactivity" min="1" max="5" step="1" class="w-full">
+            <div class="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Smooth / gradual</span>
+              <span>Fast / instant</span>
+            </div>
           </div>
 
           <button @click="addConfig()" :disabled="saving" class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-600 px-6 py-2 rounded text-sm font-medium transition">
@@ -230,10 +284,10 @@
             <!-- dB Level Bar -->
             <div class="mb-4">
               <div class="flex justify-between text-xs text-gray-500 mb-1">
-                <span>-60 dB</span>
+                <span>-80 dB</span>
+                <span>-60</span>
                 <span>-40</span>
-                <span>-20</span>
-                <span>0 dB</span>
+                <span>-20 dB</span>
               </div>
               <div class="h-4 bg-gray-700 rounded-full overflow-hidden">
                 <div class="db-bar h-full rounded-full" :class="dbColor(device.lastDbLevel)" :style="'width: ' + dbPercent(device.lastDbLevel) + '%'"></div>
@@ -285,12 +339,14 @@
         monitoring: false,
         monitorInterval: null,
         toast: { show: false, message: '', type: 'success' },
+        editingConfigId: null,
+        editConfig: { sensitivity: 3, reactivity: 3, minVolume: 2, maxVolume: 14 },
+        savingConfig: false,
         newConfig: {
+          sensitivity: 3,
+          reactivity: 3,
           minVolume: 2,
           maxVolume: 14,
-          quietThresholdDb: -40,
-          loudThresholdDb: -10,
-          smoothingFactor: 0.3,
         },
 
         async init() {
@@ -356,6 +412,8 @@
           this.saving = true;
           const zone = this.zones.find(z => z.id === this.selectedZoneId);
           const account = this.accounts.find(a => a.id === this.selectedAccountId);
+          const sensParams = this.sensitivityToParams(this.newConfig.sensitivity);
+          const reactParams = this.reactivityToParams(this.newConfig.reactivity);
           try {
             const res = await fetch(`${API}/configs`, {
               method: 'POST',
@@ -366,7 +424,12 @@
                 soundtrackAccountName: account?.name || '',
                 soundtrackZoneId: this.selectedZoneId,
                 soundtrackZoneName: zone?.name || '',
-                ...this.newConfig,
+                minVolume: this.newConfig.minVolume,
+                maxVolume: this.newConfig.maxVolume,
+                quietThresholdDb: sensParams.quietThresholdDb,
+                loudThresholdDb: sensParams.loudThresholdDb,
+                smoothingFactor: reactParams.smoothingFactor,
+                sustainCount: reactParams.sustainCount,
               }),
             });
             if (!res.ok) {
@@ -422,15 +485,106 @@
           }
         },
 
+        // Sensitivity/Reactivity mapping functions
+        sensitivityToParams(level) {
+          const map = {
+            1: { quietThresholdDb: -75, loudThresholdDb: -30 },
+            2: { quietThresholdDb: -73, loudThresholdDb: -35 },
+            3: { quietThresholdDb: -70, loudThresholdDb: -40 },
+            4: { quietThresholdDb: -68, loudThresholdDb: -48 },
+            5: { quietThresholdDb: -65, loudThresholdDb: -52 },
+          };
+          return map[level] || map[3];
+        },
+        reactivityToParams(level) {
+          const map = {
+            1: { smoothingFactor: 0.1, sustainCount: 4 },
+            2: { smoothingFactor: 0.2, sustainCount: 3 },
+            3: { smoothingFactor: 0.3, sustainCount: 2 },
+            4: { smoothingFactor: 0.5, sustainCount: 2 },
+            5: { smoothingFactor: 0.7, sustainCount: 1 },
+          };
+          return map[level] || map[3];
+        },
+        paramsToSensitivity(quietDb, loudDb) {
+          const range = loudDb - quietDb;
+          if (range >= 42) return 1;
+          if (range >= 34) return 2;
+          if (range >= 25) return 3;
+          if (range >= 16) return 4;
+          return 5;
+        },
+        paramsToReactivity(smoothingFactor, sustainCount) {
+          if (smoothingFactor <= 0.15) return 1;
+          if (smoothingFactor <= 0.25) return 2;
+          if (smoothingFactor <= 0.4) return 3;
+          if (smoothingFactor <= 0.6) return 4;
+          return 5;
+        },
+        sensitivityLabel(level) {
+          return ['', 'Very Low', 'Low', 'Medium', 'High', 'Very High'][level] || 'Medium';
+        },
+        reactivityLabel(level) {
+          return ['', 'Very Slow', 'Slow', 'Medium', 'Fast', 'Very Fast'][level] || 'Medium';
+        },
+
+        toggleEditConfig(cfg) {
+          if (this.editingConfigId === cfg.id) {
+            this.editingConfigId = null;
+            return;
+          }
+          this.editConfig = {
+            sensitivity: this.paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb),
+            reactivity: this.paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2),
+            minVolume: cfg.minVolume,
+            maxVolume: cfg.maxVolume,
+          };
+          this.editingConfigId = cfg.id;
+        },
+
+        async saveConfigSettings(cfg) {
+          this.savingConfig = true;
+          const sensParams = this.sensitivityToParams(this.editConfig.sensitivity);
+          const reactParams = this.reactivityToParams(this.editConfig.reactivity);
+          try {
+            const res = await fetch(`${API}/configs/${cfg.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                minVolume: this.editConfig.minVolume,
+                maxVolume: this.editConfig.maxVolume,
+                quietThresholdDb: sensParams.quietThresholdDb,
+                loudThresholdDb: sensParams.loudThresholdDb,
+                smoothingFactor: reactParams.smoothingFactor,
+                sustainCount: reactParams.sustainCount,
+              }),
+            });
+            if (!res.ok) throw new Error('Failed to save');
+            Object.assign(cfg, {
+              minVolume: this.editConfig.minVolume,
+              maxVolume: this.editConfig.maxVolume,
+              quietThresholdDb: sensParams.quietThresholdDb,
+              loudThresholdDb: sensParams.loudThresholdDb,
+              smoothingFactor: reactParams.smoothingFactor,
+              sustainCount: reactParams.sustainCount,
+            });
+            this.editingConfigId = null;
+            this.showToast('Settings saved', 'success');
+          } catch (e) {
+            this.showToast('Failed to save settings', 'error');
+          }
+          this.savingConfig = false;
+        },
+
         dbPercent(db) {
           if (db === null || db === undefined) return 0;
-          return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+          return Math.max(0, Math.min(100, ((db + 80) / 60) * 100));
         },
 
         dbColor(db) {
           if (db === null || db === undefined) return 'bg-gray-500';
-          if (db > -10) return 'bg-red-500';
-          if (db > -25) return 'bg-yellow-500';
+          if (db > -35) return 'bg-red-500';
+          if (db > -55) return 'bg-yellow-500';
           return 'bg-green-500';
         },
 
