@@ -587,6 +587,18 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
 
     case WStype_TEXT:
       Serial.printf("WS received: %s\n", (char *)payload);
+      {
+        JsonDocument rxDoc;
+        if (deserializeJson(rxDoc, payload, length) == DeserializationError::Ok) {
+          const char* msgType = rxDoc["type"];
+          if (msgType && strcmp(msgType, "factory_reset") == 0) {
+            Serial.println("Factory reset command received!");
+            resetProvisioning();
+            delay(500);
+            ESP.restart();
+          }
+        }
+      }
       break;
 
     case WStype_ERROR:

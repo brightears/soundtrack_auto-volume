@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { deviceManager } from "../websocket/handler";
 
 const prisma = new PrismaClient();
 export const deviceRoutes = Router();
@@ -73,6 +74,19 @@ deviceRoutes.patch("/:id/pause", async (req, res) => {
     res.json(device);
   } catch (err) {
     res.status(500).json({ error: "Failed to update device pause state" });
+  }
+});
+
+// Factory reset device (sends command via WebSocket)
+deviceRoutes.post("/:id/reset", async (req, res) => {
+  try {
+    const device = await prisma.device.findUnique({ where: { id: req.params.id } });
+    if (!device) return res.status(404).json({ error: "Device not found" });
+
+    deviceManager.sendToDevice(device.deviceId, { type: "factory_reset" });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to reset device" });
   }
 });
 

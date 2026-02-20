@@ -187,6 +187,11 @@
                   </div>
                 </template>
               </div>
+
+              <!-- Reset device -->
+              <div class="border-t border-gray-700 p-4 flex justify-end">
+                <button @click="resetDevice(device)" class="text-xs text-gray-500 hover:text-red-400 transition">Reset Device</button>
+              </div>
             </div>
           </template>
         </div>
@@ -672,6 +677,15 @@
             await this.loadDevices();
           } catch (e) { this.showToast(e.message, 'error'); }
           this.saving = false;
+        },
+
+        async resetDevice(device) {
+          if (!confirm('This will restart the device and require WiFi setup again. Continue?')) return;
+          try {
+            await fetch(`${API}/devices/${device.id}/reset`, { method: 'POST' });
+            this.showToast('Reset command sent — device will restart', 'success');
+            setTimeout(() => this.loadDevices(), 3000);
+          } catch (e) { this.showToast('Failed to send reset command', 'error'); }
         },
 
         // Quick inline update helpers (customer mode)
