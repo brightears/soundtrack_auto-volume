@@ -233,15 +233,54 @@ bool provisioningInit(Arduino_GFX *gfx) {
 }
 
 bool checkTouchReset(Arduino_GFX *gfx) {
-  // Read touch controller (FT3168) to check for touch
-  Wire.beginTransmission(ADDR_FT3168);
-  Wire.write(0x02); // Touch count register
-  Wire.endTransmission(false);
-  Wire.requestFrom((uint8_t)ADDR_FT3168, (uint8_t)1);
+  // Configure touch interrupt pin
+  pinMode(PIN_TOUCH_INT, INPUT_PULLUP);
 
-  if (Wire.available()) {
-    uint8_t touchCount = Wire.read();
-    if (touchCount > 0) {
+  // Give touch controller time to initialize after power-up
+  delay(300);
+
+  // Set device mode to working/normal mode (register 0x00 = 0x00)
+  Wire.beginTransmission(ADDR_FT3168);
+  Wire.write(0x00);
+  Wire.write(0x00);
+  Wire.endTransmission();
+  delay(200);
+
+  // Show reset hint on display
+  if (gfx) {
+    gfx->setTextSize(1);
+    gfx->setTextColor(COLOR_DIM);
+    gfx->setCursor(12, LCD_HEIGHT - 16);
+    gfx->print("Touch screen now to factory reset...");
+  }
+
+  // Poll for touch a few times (controller may need time)
+  uint8_t touchCount = 0;
+  for (int i = 0; i < 10; i++) {
+    Wire.beginTransmission(ADDR_FT3168);
+    Wire.write(0x02); // Touch count register
+    Wire.endTransmission(false);
+    Wire.requestFrom((uint8_t)ADDR_FT3168, (uint8_t)1);
+
+    if (Wire.available()) {
+      touchCount = Wire.read();
+      int intPin = digitalRead(PIN_TOUCH_INT);
+      Serial.printf("Touch poll %d: count=%d INT=%d\n", i, touchCount, intPin);
+      // FT3168 INT goes LOW on touch
+      if (touchCount > 0 || intPin == LOW) {
+        touchCount = touchCount > 0 ? touchCount : 1;
+        break;
+      }
+    }
+    delay(200);
+  }
+
+  // Clear hint text
+  if (gfx) {
+    gfx->fillRect(0, LCD_HEIGHT - 20, LCD_WIDTH, 20, COLOR_BG);
+  }
+
+  if (touchCount > 0) {
       Serial.println("Touch detected at boot - hold for 5s to factory reset...");
 
       if (gfx) {
@@ -309,7 +348,6 @@ bool checkTouchReset(Arduino_GFX *gfx) {
       }
 
       Serial.println("Touch released before 5s - continuing normal boot");
-    }
   }
 
   return false;
