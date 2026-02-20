@@ -55,6 +55,14 @@ prisma.zoneConfig.updateMany({
   if (r.count > 0) console.log(`Migrated ${r.count} config(s) to recommended defaults`);
 }).catch(console.error);
 
+// One-time migration: recalibrate sensitivity thresholds to match actual ES8311 mic range
+prisma.zoneConfig.updateMany({
+  where: { quietThresholdDb: -70, loudThresholdDb: -40 },
+  data: { quietThresholdDb: -74, loudThresholdDb: -45 },
+}).then(r => {
+  if (r.count > 0) console.log(`Migrated ${r.count} config(s) to recalibrated thresholds`);
+}).catch(console.error);
+
 // Start server
 server.listen(config.port, () => {
   console.log(`Server running on port ${config.port}`);

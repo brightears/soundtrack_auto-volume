@@ -855,12 +855,13 @@
 
         // Sensitivity/Reactivity mapping functions
         sensitivityToParams(level) {
+          // Calibrated to ES8311 mic: ambient ~-78 dBFS, talking ~-50, loud ~-30
           const map = {
-            1: { quietThresholdDb: -75, loudThresholdDb: -30 },
-            2: { quietThresholdDb: -73, loudThresholdDb: -35 },
-            3: { quietThresholdDb: -70, loudThresholdDb: -40 },
-            4: { quietThresholdDb: -68, loudThresholdDb: -48 },
-            5: { quietThresholdDb: -65, loudThresholdDb: -52 },
+            1: { quietThresholdDb: -78, loudThresholdDb: -30 },  // 48 dB range, only big changes
+            2: { quietThresholdDb: -76, loudThresholdDb: -38 },  // 38 dB range
+            3: { quietThresholdDb: -74, loudThresholdDb: -45 },  // 29 dB range
+            4: { quietThresholdDb: -72, loudThresholdDb: -50 },  // 22 dB range
+            5: { quietThresholdDb: -70, loudThresholdDb: -55 },  // 15 dB range, subtle changes
           };
           return map[level] || map[3];
         },
@@ -876,10 +877,10 @@
         },
         paramsToSensitivity(quietDb, loudDb) {
           const range = loudDb - quietDb;
-          if (range >= 42) return 1;
-          if (range >= 34) return 2;
+          if (range >= 43) return 1;
+          if (range >= 33) return 2;
           if (range >= 25) return 3;
-          if (range >= 16) return 4;
+          if (range >= 18) return 4;
           return 5;
         },
         paramsToReactivity(smoothingFactor, sustainCount) {
