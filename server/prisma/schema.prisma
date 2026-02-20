@@ -31,12 +31,12 @@ model ZoneConfig {
   soundtrackZoneName    String?
   isEnabled             Boolean  @default(false)
   isPaused              Boolean  @default(false)
-  minVolume             Int      @default(2)
-  maxVolume             Int      @default(14)
+  minVolume             Int      @default(4)
+  maxVolume             Int      @default(12)
   quietThresholdDb      Float    @default(-70)
   loudThresholdDb       Float    @default(-40)
-  smoothingFactor       Float    @default(0.3)
-  sustainCount          Int      @default(2)
+  smoothingFactor       Float    @default(0.2)
+  sustainCount          Int      @default(3)
   currentVolume         Int      @default(8)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

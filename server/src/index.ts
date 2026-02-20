@@ -47,6 +47,14 @@ prisma.zoneConfig.updateMany({
   if (r.count > 0) console.log(`Migrated ${r.count} config(s) to calibrated thresholds`);
 }).catch(console.error);
 
+// One-time migration: update old too-reactive defaults to recommended values
+prisma.zoneConfig.updateMany({
+  where: { smoothingFactor: 0.3, sustainCount: 2, minVolume: 2, maxVolume: 14 },
+  data: { smoothingFactor: 0.2, sustainCount: 3, minVolume: 4, maxVolume: 12 },
+}).then(r => {
+  if (r.count > 0) console.log(`Migrated ${r.count} config(s) to recommended defaults`);
+}).catch(console.error);
+
 // Start server
 server.listen(config.port, () => {
   console.log(`Server running on port ${config.port}`);

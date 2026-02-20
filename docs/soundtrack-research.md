@@ -6,8 +6,9 @@ B2B music streaming platform for businesses. Provides licensed background music 
 ## API Details
 - **Type:** GraphQL (single endpoint)
 - **Endpoint:** `POST https://api.soundtrackyourbrand.com/v2`
-- **Auth:** OAuth 2.0 Bearer token in Authorization header
+- **Auth:** Basic auth — `Authorization: Basic <Base64(client_id:client_secret)>` (NOT OAuth2)
 - **Content-Type:** `application/json`
+- **Important:** setVolume uses a custom `Volume` scalar that breaks GraphQL variables — must inline values in query string
 
 ## Data Hierarchy
 ```
@@ -65,11 +66,29 @@ Authorization: Bearer <token>
 - Implement WiFi reconnection logic
 - Consider connection pooling or keep-alive for efficiency
 
-## Volume Mapping Strategy (Audio dBFS -> 0-16)
-1. Read microphone audio via I2S (16-bit, 16kHz)
-2. Calculate RMS over ~100ms window
-3. Convert to dBFS: `20 * log10(rms / 32768)`
-4. Apply exponential moving average for smoothing
-5. Map dBFS to 0-16 using logarithmic curve
-6. Apply hysteresis (+/- 1 level) to prevent jitter
-7. Only call API when volume level actually changes
+## Volume Mapping Pipeline (Implemented in volume-mapper.ts)
+1. Read microphone audio via I2S (16-bit, 16kHz) — every 100ms
+2. Calculate RMS over buffer, convert to dBFS: `20 * log10(rms / 32768)`
+3. Send dBFS to server via WebSocket — every 500ms
+4. **EMA Smoothing:** `smoothedDb = factor * new + (1-factor) * previous`
+5. **Linear mapping in dB domain:** map smoothedDb from [quietDb, loudDb] to [minVol, maxVol]
+6. **Hysteresis:** only change if diff >= 1 AND sustained for N+ consecutive readings
+7. **Rate limiting:** max 1 Soundtrack API call per 2 seconds per zone
+8. Update stored currentVolume in DB on successful API call
+
+### User Controls (1-5 scales)
+**Sensitivity** = what sound level triggers a volume change
+- Controls: quietThresholdDb + loudThresholdDb (the dB window)
+- Low (1): wide window (-75 to -30), needs loud noise to react
+- High (5): narrow window (-65 to -52), reacts to quiet talking
+
+**Reactivity** = how fast the volume adjusts once triggered
+- Controls: smoothingFactor + sustainCount
+- Low (1): factor=0.1, sustain=4 — smooth, gradual changes
+- High (5): factor=0.7, sustain=1 — near-instant response
+
+### Calibrated Ranges
+- ES8311 mic actual range: -80 (silence) to -20 (very loud) dBFS
+- Default thresholds: quietDb=-70, loudDb=-40 (30dB active range)
+- Frontend dB bar: -80 to -20 range
+- Volume range: 0-16 (Soundtrack scale), default min=2, max=14

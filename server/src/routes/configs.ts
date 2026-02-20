@@ -47,12 +47,12 @@ configRoutes.post("/", async (req, res) => {
         soundtrackZoneId,
         soundtrackZoneName,
         isEnabled: isEnabled ?? false,
-        minVolume: minVolume ?? 2,
-        maxVolume: maxVolume ?? 14,
+        minVolume: minVolume ?? 4,
+        maxVolume: maxVolume ?? 12,
         quietThresholdDb: quietThresholdDb ?? -70,
         loudThresholdDb: loudThresholdDb ?? -40,
-        smoothingFactor: smoothingFactor ?? 0.3,
-        sustainCount: sustainCount ?? 2,
+        smoothingFactor: smoothingFactor ?? 0.2,
+        sustainCount: sustainCount ?? 3,
       },
     });
 

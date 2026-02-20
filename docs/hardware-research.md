@@ -29,42 +29,48 @@
 | PCF85063 | 0x51 | RTC |
 | QMI8658 | 0x6A | 6-axis IMU |
 
-**I2C Pins:** SDA = GPIO1, SCL = GPIO2
+**I2C Pins:** SDA = GPIO15, SCL = GPIO14 (verified working)
 
-## I2S Audio (ES8311 Codec)
+## I2S Audio (ES8311 Codec) - VERIFIED
 | Signal | GPIO | Direction |
 |--------|------|-----------|
-| MCLK | GPIO42 | Output (master clock to codec) |
+| MCLK | GPIO16 | Output (master clock to codec) |
 | BCLK | GPIO9 | Output (bit clock) |
 | LRCK/WS | GPIO45 | Output (word select) |
 | DIN | GPIO10 | Input (mic data FROM codec) |
 | DOUT | GPIO8 | Output (speaker data TO codec) |
+| PA_EN | GPIO46 | Speaker power amplifier enable |
 
-**NOTE:** These pins are from ESPHome configurations for similar Waveshare boards. VERIFY against official schematic before use.
+**ES8311 Critical Notes:**
+- Register 0x17 = 0xBF MUST be written to enable ADC (without it, mic returns near-zero)
+- Register 0x16 = PGA gain (0=0dB to 7=42dB, currently using 4=24dB)
+- Ambient reads ~-77 to -80 dBFS, talking ~-50, loud ~-30
 
-## Display (QSPI - SH8601)
+## Display (QSPI - SH8601 AMOLED) - VERIFIED
 | Signal | GPIO |
 |--------|------|
-| CS | GPIO 9 (TBD - may conflict with I2S BCLK, verify!) |
-| SCK | GPIO 10 |
-| D0 | GPIO 11 |
-| D1 | GPIO 12 |
-| D2 | GPIO 13 |
-| D3 | GPIO 14 |
-| RST | Via TCA9554 P0 |
-| TE | GPIO 8 |
+| CS | GPIO12 |
+| SCLK | GPIO11 |
+| D0 | GPIO4 |
+| D1 | GPIO5 |
+| D2 | GPIO6 |
+| D3 | GPIO7 |
+| RST | Via TCA9554 P2 |
+| EN | Via TCA9554 P1 |
 
-**IMPORTANT:** Display and I2S may share some GPIOs depending on board revision. Must verify with schematic.
+**Resolution:** 368 x 448 pixels
+**Constructor:** `Arduino_SH8601(bus, -1, 0, 368, 448)` — 4th/5th args are width/height, NOT bool!
+**Brightness:** `amoled->setBrightness(255)` on typed `Arduino_SH8601*` pointer
 
-## TCA9554 IO Expander (I2C: 0x20)
-| Pin | Typical Function |
-|-----|-----------------|
-| P0 | AMOLED Reset |
-| P1 | Touch Reset |
-| P2 | Audio PA Enable |
-| P3 | Sensor power enable |
-| P4 | PWR button detect (EXIO4) |
-| P5-P7 | Various / SD card (EXIO7) |
+## TCA9554 IO Expander (I2C: 0x20) - VERIFIED
+| Pin | Function |
+|-----|----------|
+| P0 | General (set HIGH at boot) |
+| P1 | Display Enable |
+| P2 | Display Reset |
+| P3-P7 | Various / SD card |
+
+**Init sequence:** Set P0/P1/P2 LOW → delay 20ms → Set HIGH → delay 100ms
 
 ## SD Card (SPI Mode)
 | Signal | Pin |
@@ -88,16 +94,17 @@
 - [PCF85063](https://files.waveshare.com/wiki/common/PCF85063A.pdf)
 - [AXP2101](https://files.waveshare.com/wiki/common/X-power-AXP2101_SWcharge_V1.0.pdf)
 
-## Key Libraries (Arduino)
+## Key Libraries (Arduino) - Currently Used
 | Library | Version | Purpose |
 |---------|---------|---------|
-| Arduino_DriveBus | - | Bus abstraction |
-| GFX_Library_for_Arduino | v1.4.9 | Display |
-| ESP32_IO_Expander | v0.0.3 | TCA9554 |
-| LVGL | v8.4.0 | GUI framework |
-| SensorLib | v0.2.1 | IMU |
-| XPowersLib | v0.2.6 | AXP2101 PMIC |
-| ArduinoJson | v7 | JSON parsing |
+| ArduinoJson | ^7 | JSON parsing |
+| WebSockets | ^2.4 | WebSocket client |
+| Adafruit XCA9554 | ^1.0.0 | IO expander |
+| GFX Library for Arduino | ^1.6.1 | Display (SH8601 QSPI AMOLED) |
+| WiFiManager (tzapu) | 2.0.17 | Captive portal WiFi provisioning |
+| Preferences | built-in | NVS storage for server URL |
+
+**Platform:** pioarduino v54.03.21-2 (Arduino-ESP32 v3.x, ESP-IDF v5.4)
 
 ## Performance
 - Arduino LVGL: ~50-60 fps

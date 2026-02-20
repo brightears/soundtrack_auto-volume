@@ -17,10 +17,11 @@
   <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
     <div class="max-w-6xl mx-auto flex items-center justify-between">
       <h1 class="text-xl font-bold text-white">Soundtrack Auto-Volume</h1>
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center">
         <button @click="tab = 'devices'" :class="tab === 'devices' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Devices</button>
         <button @click="tab = 'config'" :class="tab === 'config' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Configure</button>
         <button @click="tab = 'monitor'" :class="tab === 'monitor' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Monitor</button>
+        <button @click="showHelp = !showHelp" :class="showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-3 py-2 rounded text-sm transition ml-2" title="Toggle help tips">?</button>
       </div>
     </div>
   </header>
@@ -42,13 +43,38 @@
 
     <!-- Devices Tab -->
     <div x-show="tab === 'devices'" x-cloak>
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold">Connected Devices</h2>
         <button @click="loadDevices()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded text-sm transition">Refresh</button>
       </div>
 
-      <div x-show="devices.length === 0" class="text-gray-400 text-center py-12">
-        No devices registered yet. Connect an ESP32 to get started.
+      <!-- Devices help panel -->
+      <div x-show="showHelp && devices.length > 0" x-transition class="mb-6 bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 text-sm space-y-2">
+        <p class="text-blue-300 font-medium">Managing Devices</p>
+        <div class="text-gray-400 space-y-1">
+          <p><strong class="text-gray-300">Quick Setup</strong> &mdash; Links a device to a Soundtrack zone in 3 steps. The device will start auto-adjusting volume immediately.</p>
+          <p><strong class="text-gray-300">Configure</strong> &mdash; Opens the Configure tab where you can fine-tune sensitivity, reactivity, and volume range.</p>
+          <p><strong class="text-gray-300">Rename</strong> &mdash; Click the pencil icon to give your device a friendly name (e.g. "Bar Area", "Dining Room").</p>
+        </div>
+      </div>
+
+      <div x-show="devices.length === 0" class="text-center py-12">
+        <h3 class="text-xl font-semibold text-white mb-2">Welcome to Auto-Volume</h3>
+        <p class="text-gray-400 mb-8">Automatically adjusts your Soundtrack Your Brand music volume based on ambient noise.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl mx-auto text-left">
+          <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-indigo-400 font-bold text-lg mb-1">1. Connect</div>
+            <p class="text-sm text-gray-400">Power on your ESP32 device. It will create a WiFi network called <strong class="text-gray-300">AutoVolume-XXXX</strong>. Connect to it and enter your WiFi password.</p>
+          </div>
+          <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-indigo-400 font-bold text-lg mb-1">2. Set Up</div>
+            <p class="text-sm text-gray-400">Once connected, your device will appear here. Use the <strong class="text-gray-300">Quick Setup</strong> wizard to link it to a Soundtrack zone.</p>
+          </div>
+          <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-indigo-400 font-bold text-lg mb-1">3. Monitor</div>
+            <p class="text-sm text-gray-400">Go to the <strong class="text-gray-300">Monitor</strong> tab to see live noise levels and volume adjustments in real time.</p>
+          </div>
+        </div>
       </div>
 
       <div class="grid gap-4">
@@ -102,7 +128,19 @@
 
     <!-- Config Tab -->
     <div x-show="tab === 'config'" x-cloak>
-      <h2 class="text-lg font-semibold mb-6">Zone Configuration</h2>
+      <h2 class="text-lg font-semibold mb-4">Zone Configuration</h2>
+
+      <!-- Config help panel -->
+      <div x-show="showHelp" x-transition class="mb-6 bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 text-sm space-y-3">
+        <p class="text-blue-300 font-medium">How Auto-Volume works</p>
+        <p class="text-gray-400">The device's microphone measures ambient noise. When the room gets louder (more guests, conversations), the music volume goes up so it stays audible. When it gets quieter, the volume comes back down.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-400">
+          <div><strong class="text-gray-300">Sensitivity</strong> &mdash; How much noise is needed to trigger a change. <em>Low</em> = only reacts to big shifts in room noise. <em>High</em> = reacts to quiet conversations. <span class="text-blue-400">Recommended: Medium</span></div>
+          <div><strong class="text-gray-300">Reactivity</strong> &mdash; How quickly volume adjusts. <em>Low</em> = smooth gradual changes over 15-20 seconds (best for most venues). <em>High</em> = near-instant response. <span class="text-blue-400">Recommended: Low-Medium</span></div>
+          <div><strong class="text-gray-300">Min Volume</strong> &mdash; Quietest the music will go (0-16). Ensures music is always audible even in an empty room. <span class="text-blue-400">Recommended: 4-5</span></div>
+          <div><strong class="text-gray-300">Max Volume</strong> &mdash; Loudest the music will go (0-16). Prevents music from getting too loud. <span class="text-blue-400">Recommended: 10-12</span></div>
+        </div>
+      </div>
 
       <!-- Device Selector -->
       <div class="mb-6">
@@ -295,6 +333,17 @@
           <button @click="toggleMonitoring()" :class="monitoring ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'" class="px-4 py-1.5 rounded text-sm transition">
             <span x-text="monitoring ? 'Stop' : 'Start'"></span>
           </button>
+        </div>
+      </div>
+
+      <!-- Monitor help panel -->
+      <div x-show="showHelp" x-transition class="mb-6 bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 text-sm space-y-2">
+        <p class="text-blue-300 font-medium">Reading the Monitor</p>
+        <div class="text-gray-400 space-y-1">
+          <p><strong class="text-gray-300">dB Level</strong> &mdash; Real-time ambient noise from the microphone. <span class="text-green-400">Green</span> = quiet room, <span class="text-yellow-400">Yellow</span> = moderate noise, <span class="text-red-400">Red</span> = loud.</p>
+          <p><strong class="text-gray-300">Volume bars</strong> &mdash; Current Soundtrack volume (0-16). Updates automatically based on the noise level and your sensitivity/reactivity settings.</p>
+          <p><strong class="text-gray-300">Pause</strong> &mdash; Temporarily stops auto-adjusting for a zone. Music keeps playing at its current volume level.</p>
+          <p><strong class="text-gray-300">Sensitivity slider</strong> &mdash; Quick adjustment for how reactive the zone is to noise changes.</p>
         </div>
       </div>
 
@@ -505,18 +554,19 @@
         monitorInterval: null,
         toast: { show: false, message: '', type: 'success' },
         editingConfigId: null,
-        editConfig: { sensitivity: 3, reactivity: 3, minVolume: 2, maxVolume: 14 },
+        editConfig: { sensitivity: 3, reactivity: 2, minVolume: 4, maxVolume: 12 },
         savingConfig: false,
         newConfig: {
           sensitivity: 3,
-          reactivity: 3,
-          minVolume: 2,
-          maxVolume: 14,
+          reactivity: 2,
+          minVolume: 4,
+          maxVolume: 12,
         },
         // New state for Phase 2
         renamingDeviceId: null,
         renameValue: '',
         showOffline: false,
+        showHelp: false,
         wizard: { active: false, step: 1, deviceId: null, deviceName: '' },
 
         async init() {
