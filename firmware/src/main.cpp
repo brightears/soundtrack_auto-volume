@@ -5,10 +5,19 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_XCA9554.h>
+#include <Arduino_GFX_Library.h>
 
 #include "pins.h"
 #include "config.h"
 #include "secrets.h"
+
+// --- Display (QSPI SH8601 AMOLED) ---
+Arduino_DataBus *qspi_bus = new Arduino_ESP32QSPI(
+    PIN_LCD_CS, PIN_LCD_SCLK,
+    PIN_LCD_DATA0, PIN_LCD_DATA1, PIN_LCD_DATA2, PIN_LCD_DATA3
+);
+Arduino_SH8601 *amoled = new Arduino_SH8601(qspi_bus, -1, 0, false);
+Arduino_GFX *gfx = amoled;
 
 // --- Globals ---
 Adafruit_XCA9554 expander;
@@ -18,23 +27,40 @@ static String deviceId;
 static float currentDbFS = -60.0;
 static bool wsConnected = false;
 static bool wifiConnected = false;
+static bool displayReady = false;
 static unsigned long lastDbSend = 0;
 static unsigned long lastDbCalc = 0;
+static unsigned long lastDisplayUpdate = 0;
 static unsigned long lastWiFiRetry = 0;
 
-// I2S port
 #define I2S_PORT I2S_NUM_0
+#define DISPLAY_UPDATE_INTERVAL 200  // ms between display redraws
+
+// Colors
+#define COLOR_BG       0x0000  // Black
+#define COLOR_HEADER   0x2104  // Dark gray
+#define COLOR_TEXT     0xFFFF  // White
+#define COLOR_DIM      0x7BEF  // Gray
+#define COLOR_GREEN    0x07E0
+#define COLOR_RED      0xF800
+#define COLOR_YELLOW   0xFFE0
+#define COLOR_CYAN     0x07FF
+#define COLOR_ORANGE   0xFD20
+#define COLOR_BAR_BG   0x18E3  // Very dark gray
 
 // --- Forward declarations ---
 void initI2C();
 void initTCA9554();
 void initES8311();
 void initI2S();
+void initDisplay();
 void initWiFi();
 void checkWiFi();
 void initWebSocket();
 void calculateDb();
 void sendSoundLevel();
+void updateDisplay();
+void drawStaticUI();
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 const char* wifiStatusStr(wl_status_t status);
 
@@ -60,21 +86,12 @@ void setup() {
   delay(1000);
   Serial.println("\n=== Soundtrack Auto-Volume ESP32 ===");
 
-  // Generate device ID from MAC
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  char macStr[13];
-  snprintf(macStr, sizeof(macStr), "%02x%02x%02x%02x%02x%02x",
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  deviceId = String(DEVICE_ID_PREFIX) + macStr;
-  Serial.printf("Device ID: %s\n", deviceId.c_str());
-
   initI2C();
   initTCA9554();
+  initDisplay();
   initES8311();
   initI2S();
   initWiFi();
-  // WebSocket will be initialized once WiFi connects (in loop)
 
   Serial.println("Setup complete!");
 }
@@ -93,7 +110,12 @@ void loop() {
       lastWiFiRetry = now;
       checkWiFi();
     }
-    return;  // Don't do anything else until WiFi is up
+    // Still update display while waiting for WiFi
+    if (displayReady && now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
+      lastDisplayUpdate = now;
+      updateDisplay();
+    }
+    return;
   }
 
   if (!wifiConnected) {
@@ -116,6 +138,12 @@ void loop() {
     lastDbSend = now;
     sendSoundLevel();
   }
+
+  // Update display
+  if (displayReady && now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
+    lastDisplayUpdate = now;
+    updateDisplay();
+  }
 }
 
 // --- I2C Init ---
@@ -134,12 +162,10 @@ void initTCA9554() {
     return;
   }
 
-  // Configure EXIO pins 0, 1, 2 as outputs
   expander.pinMode(EXIO_PIN0, OUTPUT);
   expander.pinMode(EXIO_DISPLAY_EN, OUTPUT);
   expander.pinMode(EXIO_DISPLAY_RST, OUTPUT);
 
-  // Reset sequence: low -> wait -> high
   expander.digitalWrite(EXIO_PIN0, LOW);
   expander.digitalWrite(EXIO_DISPLAY_EN, LOW);
   expander.digitalWrite(EXIO_DISPLAY_RST, LOW);
@@ -152,53 +178,229 @@ void initTCA9554() {
   Serial.println("TCA9554 OK");
 }
 
+// --- AMOLED Display Init ---
+void initDisplay() {
+  Serial.println("Init AMOLED display...");
+
+  if (!gfx->begin()) {
+    Serial.println("ERROR: Display init failed!");
+    return;
+  }
+
+  amoled->setBrightness(180);
+  gfx->fillScreen(COLOR_BG);
+  displayReady = true;
+
+  drawStaticUI();
+  Serial.println("AMOLED display OK");
+}
+
+// --- Draw static parts of the UI (called once) ---
+void drawStaticUI() {
+  // Header bar
+  gfx->fillRect(0, 0, LCD_WIDTH, 40, COLOR_HEADER);
+  gfx->setTextColor(COLOR_TEXT);
+  gfx->setTextSize(2);
+  gfx->setCursor(12, 10);
+  gfx->print("Auto-Volume");
+
+  // Divider
+  gfx->drawFastHLine(0, 40, LCD_WIDTH, COLOR_DIM);
+
+  // Section: Sound Level
+  gfx->setTextColor(COLOR_DIM);
+  gfx->setTextSize(1);
+  gfx->setCursor(12, 54);
+  gfx->print("SOUND LEVEL");
+
+  // Section: Status
+  gfx->setCursor(12, 258);
+  gfx->print("STATUS");
+  gfx->drawFastHLine(12, 270, LCD_WIDTH - 24, COLOR_HEADER);
+
+  // Section: Device
+  gfx->setCursor(12, 360);
+  gfx->print("DEVICE");
+  gfx->drawFastHLine(12, 372, LCD_WIDTH - 24, COLOR_HEADER);
+
+  // Device ID (static)
+  gfx->setTextColor(COLOR_DIM);
+  gfx->setTextSize(1);
+  gfx->setCursor(12, 382);
+  gfx->print("ID: ");
+  gfx->setTextColor(COLOR_TEXT);
+  gfx->print(deviceId.c_str());
+}
+
+// --- Update dynamic parts of the display ---
+void updateDisplay() {
+  // --- dB value (large) ---
+  // Clear the dB number area
+  gfx->fillRect(12, 72, 344, 60, COLOR_BG);
+  gfx->setTextSize(5);
+
+  // Color based on level
+  uint16_t dbColor;
+  if (currentDbFS > -15) {
+    dbColor = COLOR_RED;
+  } else if (currentDbFS > -30) {
+    dbColor = COLOR_ORANGE;
+  } else if (currentDbFS > -50) {
+    dbColor = COLOR_GREEN;
+  } else {
+    dbColor = COLOR_DIM;
+  }
+
+  gfx->setTextColor(dbColor);
+  gfx->setCursor(12, 74);
+  char dbStr[16];
+  snprintf(dbStr, sizeof(dbStr), "%.1f", currentDbFS);
+  gfx->print(dbStr);
+
+  // Unit label
+  gfx->setTextSize(2);
+  gfx->setTextColor(COLOR_DIM);
+  gfx->setCursor(280, 90);
+  gfx->print("dBFS");
+
+  // --- Level bar ---
+  int barX = 12;
+  int barY = 145;
+  int barW = LCD_WIDTH - 24;
+  int barH = 30;
+
+  // Map dBFS (-90 to 0) to bar width
+  float normalized = (currentDbFS + 90.0f) / 90.0f;
+  if (normalized < 0) normalized = 0;
+  if (normalized > 1) normalized = 1;
+  int fillW = (int)(normalized * barW);
+
+  // Bar background
+  gfx->fillRect(barX, barY, barW, barH, COLOR_BAR_BG);
+
+  // Filled portion with gradient color
+  if (fillW > 0) {
+    uint16_t barColor;
+    if (normalized > 0.83f) barColor = COLOR_RED;       // > -15 dBFS
+    else if (normalized > 0.67f) barColor = COLOR_ORANGE; // > -30 dBFS
+    else if (normalized > 0.44f) barColor = COLOR_YELLOW; // > -50 dBFS
+    else barColor = COLOR_GREEN;
+    gfx->fillRect(barX, barY, fillW, barH, barColor);
+  }
+
+  // Scale markers
+  gfx->setTextSize(1);
+  gfx->setTextColor(COLOR_DIM);
+  gfx->setCursor(barX, barY + barH + 4);
+  gfx->print("-90");
+  gfx->setCursor(barX + barW / 2 - 12, barY + barH + 4);
+  gfx->print("-45");
+  gfx->setCursor(barX + barW - 8, barY + barH + 4);
+  gfx->print("0");
+
+  // --- Peak indicator ---
+  gfx->fillRect(12, 200, 344, 40, COLOR_BG);
+  gfx->setTextSize(2);
+  gfx->setTextColor(COLOR_DIM);
+  gfx->setCursor(12, 210);
+  gfx->print("Level: ");
+  gfx->setTextColor(dbColor);
+  if (currentDbFS > -15) gfx->print("LOUD");
+  else if (currentDbFS > -30) gfx->print("MODERATE");
+  else if (currentDbFS > -50) gfx->print("QUIET");
+  else gfx->print("SILENT");
+
+  // --- Status section ---
+  gfx->fillRect(12, 278, 344, 70, COLOR_BG);
+  gfx->setTextSize(2);
+
+  // WiFi status
+  gfx->setCursor(12, 280);
+  gfx->setTextColor(COLOR_DIM);
+  gfx->print("WiFi ");
+  if (wifiConnected) {
+    gfx->setTextColor(COLOR_GREEN);
+    gfx->print("Connected");
+    // RSSI on next line
+    gfx->setTextSize(1);
+    gfx->setTextColor(COLOR_DIM);
+    gfx->setCursor(12, 300);
+    gfx->printf("%s  %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+  } else {
+    gfx->setTextColor(COLOR_RED);
+    gfx->print("Disconnected");
+  }
+
+  // WebSocket status
+  gfx->setTextSize(2);
+  gfx->setCursor(12, 320);
+  gfx->setTextColor(COLOR_DIM);
+  gfx->print("Server ");
+  if (wsConnected) {
+    gfx->setTextColor(COLOR_GREEN);
+    gfx->print("Online");
+  } else {
+    gfx->setTextColor(COLOR_YELLOW);
+    gfx->print("Offline");
+  }
+
+  // --- Uptime ---
+  gfx->fillRect(12, 398, 344, 40, COLOR_BG);
+  gfx->setTextSize(1);
+  gfx->setTextColor(COLOR_DIM);
+  gfx->setCursor(12, 400);
+  unsigned long uptimeSec = millis() / 1000;
+  unsigned long h = uptimeSec / 3600;
+  unsigned long m = (uptimeSec % 3600) / 60;
+  unsigned long s = uptimeSec % 60;
+  gfx->printf("Uptime: %02lu:%02lu:%02lu", h, m, s);
+
+  // FW version
+  gfx->setCursor(12, 416);
+  gfx->print("FW: 1.0.0");
+  gfx->setCursor(200, 416);
+  gfx->printf("RSSI: %d", WiFi.RSSI());
+}
+
 // --- ES8311 Codec Init ---
 void initES8311() {
   Serial.println("Init ES8311...");
 
-  // Verify chip presence
   Wire.beginTransmission(ADDR_ES8311);
   if (Wire.endTransmission() != 0) {
     Serial.println("ERROR: ES8311 not found on I2C!");
     return;
   }
 
-  // Read chip ID
   uint8_t id1 = es8311Read(0xFD);
   uint8_t id2 = es8311Read(0xFE);
   Serial.printf("ES8311 Chip ID: 0x%02X 0x%02X\n", id1, id2);
 
-  // Reset
   es8311Write(0x00, 0x1F);
   delay(20);
-  es8311Write(0x00, 0x80);  // Normal operation
+  es8311Write(0x00, 0x80);
 
-  // Clock config for 16kHz, MCLK = 256 * 16000 = 4.096MHz
-  es8311Write(0x01, 0x3F);  // MCLK from pin, not inverted
-  es8311Write(0x02, 0x00);  // Pre-divider = 1
+  es8311Write(0x01, 0x3F);
+  es8311Write(0x02, 0x00);
   es8311Write(0x03, 0x10);
   es8311Write(0x04, 0x10);
   es8311Write(0x05, 0x00);
-  es8311Write(0x06, 0x03);  // BCLK config
+  es8311Write(0x06, 0x03);
   es8311Write(0x07, 0x00);
   es8311Write(0x08, 0xFF);
 
-  // I2S format: standard, 16-bit
-  es8311Write(0x09, 0x0C);  // DAC SDP
-  es8311Write(0x0A, 0x0C);  // ADC SDP
+  es8311Write(0x09, 0x0C);
+  es8311Write(0x0A, 0x0C);
 
-  // Power up
   es8311Write(0x0D, 0x01);
   es8311Write(0x0E, 0x02);
   es8311Write(0x12, 0x00);
   es8311Write(0x13, 0x10);
   es8311Write(0x14, 0x1A);
 
-  // ADC (microphone)
   es8311Write(0x1C, 0x6A);
-  es8311Write(0x16, 0x24);  // Mic gain ~18dB
+  es8311Write(0x16, 0x24);
 
-  // DAC volume
   es8311Write(0x32, 0xBF);
   es8311Write(0x37, 0x08);
 
@@ -263,20 +465,15 @@ const char* wifiStatusStr(wl_status_t status) {
   }
 }
 
-// --- WiFi event callback for diagnostics ---
+// --- WiFi event callback ---
 void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   switch (event) {
-    case ARDUINO_EVENT_WIFI_STA_START:
-      Serial.println("[WiFi] STA started");
-      break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED:
       Serial.println("[WiFi] Connected to AP!");
       break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
       Serial.printf("[WiFi] Disconnected - reason: %d\n",
                     info.wifi_sta_disconnected.reason);
-      // Common reasons: 2=AUTH_EXPIRE, 15=4WAY_HANDSHAKE_TIMEOUT (wrong pwd),
-      //   201=NO_AP_FOUND, 202=AUTH_FAIL (wrong pwd)
       break;
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
       Serial.printf("[WiFi] Got IP: %s\n", WiFi.localIP().toString().c_str());
@@ -288,26 +485,29 @@ void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
 
 // --- WiFi Init ---
 void initWiFi() {
-  Serial.printf("Connecting to WiFi: '%s' (pwd len: %d)\n", WIFI_SSID, (int)strlen(WIFI_PASSWORD));
-
-  // Register WiFi event handler for diagnostics
   WiFi.onEvent(onWiFiEvent);
-
   WiFi.disconnect(true);
   delay(100);
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
   delay(100);
+
+  // Generate device ID from MAC (must be after WiFi.mode)
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char macStr[13];
+  snprintf(macStr, sizeof(macStr), "%02x%02x%02x%02x%02x%02x",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  deviceId = String(DEVICE_ID_PREFIX) + macStr;
+  Serial.printf("Device ID: %s\n", deviceId.c_str());
+
+  Serial.printf("Connecting to WiFi: '%s'\n", WIFI_SSID);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  // Wait up to 15 seconds for initial connection
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
-    if (attempts % 10 == 9) {
-      Serial.printf(" [%s]\n", wifiStatusStr(WiFi.status()));
-    }
     attempts++;
   }
 
@@ -323,14 +523,11 @@ void initWiFi() {
 
 // --- WiFi reconnect check ---
 void checkWiFi() {
-  wl_status_t status = WiFi.status();
-  Serial.printf("WiFi retry... (status: %s)\n", wifiStatusStr(status));
-
+  Serial.printf("WiFi retry... (status: %s)\n", wifiStatusStr(WiFi.status()));
   WiFi.disconnect(true);
   delay(100);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  // Quick check - don't block the loop for too long
   for (int i = 0; i < 20; i++) {
     delay(500);
     if (WiFi.status() == WL_CONNECTED) {
@@ -400,14 +597,12 @@ void calculateDb() {
   esp_err_t err = i2s_read(I2S_PORT, buf, I2S_READ_BUF_SIZE, &bytesRead, 10);
   if (err != ESP_OK || bytesRead == 0) return;
 
-  // 16-bit stereo: L, R, L, R, ...
-  int numFrames = bytesRead / 4;  // 4 bytes per stereo frame
+  int numFrames = bytesRead / 4;
   if (numFrames == 0) return;
 
-  // RMS of left channel
   double sumSquares = 0;
   for (int i = 0; i < numFrames; i++) {
-    int16_t sample = buf[i * 2];  // Left channel
+    int16_t sample = buf[i * 2];
     sumSquares += (double)sample * sample;
   }
 
