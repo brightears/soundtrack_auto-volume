@@ -16,7 +16,7 @@ Arduino_DataBus *qspi_bus = new Arduino_ESP32QSPI(
     PIN_LCD_CS, PIN_LCD_SCLK,
     PIN_LCD_DATA0, PIN_LCD_DATA1, PIN_LCD_DATA2, PIN_LCD_DATA3
 );
-Arduino_SH8601 *amoled = new Arduino_SH8601(qspi_bus, -1, 0, false);
+Arduino_SH8601 *amoled = new Arduino_SH8601(qspi_bus, -1, 0, LCD_WIDTH, LCD_HEIGHT);
 Arduino_GFX *gfx = amoled;
 
 // --- Globals ---
@@ -187,7 +187,7 @@ void initDisplay() {
     return;
   }
 
-  amoled->setBrightness(180);
+  amoled->setBrightness(255);
   gfx->fillScreen(COLOR_BG);
   displayReady = true;
 

@@ -31,6 +31,17 @@ deviceRoutes.get("/:id", async (req, res) => {
   }
 });
 
+// Delete device and its configs
+deviceRoutes.delete("/:id", async (req, res) => {
+  try {
+    await prisma.zoneConfig.deleteMany({ where: { deviceId: req.params.id } });
+    await prisma.device.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete device" });
+  }
+});
+
 // Register new device (also used by ESP32 via WebSocket, but available via REST too)
 deviceRoutes.post("/", async (req, res) => {
   try {
