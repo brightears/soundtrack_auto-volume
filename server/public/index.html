@@ -18,9 +18,9 @@
     <div class="max-w-6xl mx-auto flex items-center justify-between">
       <h1 class="text-xl font-bold text-white">Soundtrack Auto-Volume</h1>
       <div class="flex gap-2 items-center">
-        <button @click="tab = 'devices'" :class="tab === 'devices' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Devices</button>
-        <button @click="tab = 'config'" :class="tab === 'config' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Configure</button>
-        <button @click="tab = 'monitor'" :class="tab === 'monitor' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Monitor</button>
+        <button @click="switchTab('devices')" :class="tab === 'devices' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Devices</button>
+        <button @click="switchTab('config')" :class="tab === 'config' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Configure</button>
+        <button @click="switchTab('monitor')" :class="tab === 'monitor' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Monitor</button>
         <button @click="showHelp = !showHelp" :class="showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-3 py-2 rounded text-sm transition ml-2" title="Toggle help tips">?</button>
       </div>
     </div>
@@ -573,6 +573,28 @@
           await this.loadDevices();
         },
 
+        switchTab(newTab) {
+          const oldTab = this.tab;
+          this.tab = newTab;
+          if (newTab === 'monitor' && !this.monitoring) {
+            this.startMonitoring();
+          } else if (oldTab === 'monitor' && newTab !== 'monitor' && this.monitoring) {
+            this.stopMonitoring();
+          }
+        },
+
+        startMonitoring() {
+          this.monitoring = true;
+          this.loadDevices();
+          this.monitorInterval = setInterval(() => this.loadDevices(), 2000);
+        },
+
+        stopMonitoring() {
+          clearInterval(this.monitorInterval);
+          this.monitorInterval = null;
+          this.monitoring = false;
+        },
+
         // Helper: display name for a device
         deviceDisplayName(device) {
           if (device.name) return device.name;
@@ -825,13 +847,9 @@
 
         toggleMonitoring() {
           if (this.monitoring) {
-            clearInterval(this.monitorInterval);
-            this.monitorInterval = null;
-            this.monitoring = false;
+            this.stopMonitoring();
           } else {
-            this.monitoring = true;
-            this.loadDevices();
-            this.monitorInterval = setInterval(() => this.loadDevices(), 2000);
+            this.startMonitoring();
           }
         },
 
