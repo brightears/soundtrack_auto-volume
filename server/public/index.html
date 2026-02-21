@@ -45,7 +45,7 @@
 
   <!-- Header -->
   <header :class="isCustomerMode ? 'bg-brand-dark' : 'bg-gray-800 border-b border-gray-700'" class="px-8 py-3">
-    <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <div :class="isCustomerMode ? 'max-w-screen-2xl' : 'max-w-6xl'" class="mx-auto flex items-center justify-between">
       <!-- Customer mode: logo only -->
       <template x-if="isCustomerMode">
         <img src="/logo.png" alt="BMAsia" class="h-10">
@@ -69,20 +69,20 @@
     <div x-show="isCustomerMode" class="h-0.5 bg-gradient-to-r from-brand-orange to-brand-orange/0 mt-3"></div>
   </header>
 
-  <main class="max-w-6xl mx-auto p-6 flex-1">
+  <main :class="isCustomerMode ? 'max-w-screen-2xl px-4 sm:px-8 lg:px-12 py-6' : 'max-w-6xl p-6'" class="mx-auto flex-1">
 
     <!-- ==================== CUSTOMER MODE ==================== -->
     <template x-if="isCustomerMode">
       <div>
         <!-- Help panel -->
-        <div x-show="showHelp" x-transition class="mb-6 bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 text-sm space-y-3">
-          <p class="text-blue-300 font-medium">How Auto-Volume works</p>
+        <div x-show="showHelp" x-transition class="mb-6 glass rounded-2xl p-4 text-sm space-y-3">
+          <p class="text-brand-orange font-medium">How Auto-Volume works</p>
           <p class="text-gray-400">The device's microphone measures ambient noise. When the room gets louder (more guests, conversations), the music volume goes up so it stays audible. When it gets quieter, the volume comes back down.</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-400">
-            <div><strong class="text-gray-300">Sensitivity</strong> &mdash; How much noise triggers a change. Low = only big shifts. High = reacts to conversations. <span class="text-blue-400">Recommended: Medium</span></div>
-            <div><strong class="text-gray-300">Reactivity</strong> &mdash; How fast volume adjusts. Low = smooth gradual changes. High = near-instant. <span class="text-blue-400">Recommended: Low-Medium</span></div>
-            <div><strong class="text-gray-300">Min Volume</strong> &mdash; Quietest music goes (0-16). <span class="text-blue-400">Recommended: 4-5</span></div>
-            <div><strong class="text-gray-300">Max Volume</strong> &mdash; Loudest music goes (0-16). <span class="text-blue-400">Recommended: 10-12</span></div>
+            <div><strong class="text-gray-300">Sensitivity</strong> &mdash; How much noise triggers a change. Low = only big shifts. High = reacts to conversations. <span class="text-brand-orange">Recommended: Medium</span></div>
+            <div><strong class="text-gray-300">Reactivity</strong> &mdash; How fast volume adjusts. Low = smooth gradual changes. High = near-instant. <span class="text-brand-orange">Recommended: Low-Medium</span></div>
+            <div><strong class="text-gray-300">Min Volume</strong> &mdash; Quietest music goes (0-16). <span class="text-brand-orange">Recommended: 4-5</span></div>
+            <div><strong class="text-gray-300">Max Volume</strong> &mdash; Loudest music goes (0-16). <span class="text-brand-orange">Recommended: 10-12</span></div>
           </div>
         </div>
 
@@ -99,7 +99,7 @@
         <!-- Device cards -->
         <div class="space-y-6">
           <template x-for="device in devices" :key="device.id">
-            <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div class="glass rounded-2xl overflow-hidden">
               <!-- Device header -->
               <div class="p-5">
                 <div class="flex items-center justify-between mb-4">
@@ -113,14 +113,14 @@
                         </button>
                       </div>
                       <div x-show="renamingDeviceId === device.id" class="flex items-center gap-2">
-                        <input type="text" x-model="renameValue" @keydown.enter="saveRename(device)" @keydown.escape="renamingDeviceId = null" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white w-48">
+                        <input type="text" x-model="renameValue" @keydown.enter="saveRename(device)" @keydown.escape="renamingDeviceId = null" class="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white w-48">
                         <button @click="saveRename(device)" class="text-green-400 text-xs">Save</button>
                         <button @click="renamingDeviceId = null" class="text-gray-400 text-xs">Cancel</button>
                       </div>
                       <p class="text-xs text-gray-500" x-text="device.isOnline ? 'Online' : 'Offline — last seen ' + timeAgo(device.lastSeen)"></p>
                     </div>
                   </div>
-                  <p class="text-2xl font-mono font-bold" :class="dbColor(device.lastDbLevel)" x-text="device.lastDbLevel !== null ? device.lastDbLevel.toFixed(1) + ' dB' : '--'"></p>
+                  <p class="text-2xl font-mono font-bold text-brand-orange" x-text="device.lastDbLevel !== null ? device.lastDbLevel.toFixed(1) + ' dB' : '--'"></p>
                 </div>
 
                 <!-- dB bar -->
@@ -128,15 +128,15 @@
                   <div class="flex justify-between text-xs text-gray-500 mb-1">
                     <span>-80 dB</span><span>-60</span><span>-40</span><span>-20 dB</span>
                   </div>
-                  <div class="h-3 bg-gray-700 rounded-full overflow-hidden">
-                    <div class="db-bar h-full rounded-full" :class="dbColor(device.lastDbLevel)" :style="'width: ' + dbPercent(device.lastDbLevel) + '%'"></div>
+                  <div class="h-3 bg-white/10 rounded-full overflow-hidden">
+                    <div class="db-bar h-full rounded-full bg-brand-orange" :style="'width: ' + dbPercent(device.lastDbLevel) + '%'"></div>
                   </div>
                 </div>
               </div>
 
               <!-- Zone configs -->
               <template x-for="cfg in (device.configs || [])" :key="cfg.id">
-                <div class="border-t border-gray-700 p-5">
+                <div class="border-t border-white/10 p-5">
                   <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
                       <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
@@ -160,7 +160,7 @@
                     <div class="flex items-center gap-3">
                       <div class="flex items-center gap-0.5 flex-1">
                         <template x-for="i in 17" :key="i">
-                          <div class="flex-1 h-5 rounded-sm" :class="(i-1) <= cfg.currentVolume ? 'bg-indigo-500' : 'bg-gray-600'"></div>
+                          <div class="flex-1 h-5 rounded-sm" :class="(i-1) <= cfg.currentVolume ? 'bg-brand-orange' : 'bg-white/10'"></div>
                         </template>
                       </div>
                       <span class="text-lg font-mono font-bold w-8 text-right" x-text="cfg.currentVolume"></span>
@@ -188,11 +188,11 @@
                     <div class="grid grid-cols-2 gap-4">
                       <div>
                         <label class="text-xs text-gray-400">Min Volume</label>
-                        <input type="number" :value="cfg.minVolume" @change="quickUpdateField(cfg, 'minVolume', parseInt($event.target.value))" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 w-full text-white text-sm">
+                        <input type="number" :value="cfg.minVolume" @change="quickUpdateField(cfg, 'minVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded px-2 py-1 w-full text-white text-sm">
                       </div>
                       <div>
                         <label class="text-xs text-gray-400">Max Volume</label>
-                        <input type="number" :value="cfg.maxVolume" @change="quickUpdateField(cfg, 'maxVolume', parseInt($event.target.value))" min="0" max="16" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 w-full text-white text-sm">
+                        <input type="number" :value="cfg.maxVolume" @change="quickUpdateField(cfg, 'maxVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded px-2 py-1 w-full text-white text-sm">
                       </div>
                     </div>
                   </div>
@@ -200,9 +200,9 @@
               </template>
 
               <!-- Add Zone button -->
-              <div class="border-t border-gray-700 p-4">
+              <div class="border-t border-white/10 p-4">
                 <template x-if="!addingZoneForDevice || addingZoneForDevice !== device.id">
-                  <button @click="startAddZone(device)" class="w-full py-2 rounded border border-dashed border-gray-600 text-gray-400 hover:text-gray-300 hover:border-gray-500 text-sm transition">
+                  <button @click="startAddZone(device)" class="w-full py-2 rounded border border-dashed border-white/20 text-gray-400 hover:text-brand-orange hover:border-brand-orange/40 text-sm transition">
                     + Add Zone
                   </button>
                 </template>
@@ -214,7 +214,7 @@
                     </div>
                     <div x-show="customerZones.length > 0" class="space-y-2 max-h-48 overflow-y-auto">
                       <template x-for="z in customerZones" :key="z.id">
-                        <button @click="addZoneToDevice(device, z)" class="w-full text-left bg-gray-700 hover:bg-gray-600 rounded p-3 text-sm transition">
+                        <button @click="addZoneToDevice(device, z)" class="w-full text-left bg-white/5 hover:bg-white/10 rounded p-3 text-sm transition">
                           <p class="font-medium" x-text="z.name"></p>
                           <p class="text-xs text-gray-400" x-text="z.locationName"></p>
                         </button>
@@ -226,7 +226,7 @@
               </div>
 
               <!-- Reset device -->
-              <div class="border-t border-gray-700 p-4 flex justify-end">
+              <div class="border-t border-white/10 p-4 flex justify-end">
                 <button @click="resetDevice(device)" class="text-xs text-gray-500 hover:text-red-400 transition">Reset Device</button>
               </div>
             </div>
@@ -590,7 +590,7 @@
 
   <!-- Footer (customer mode only) -->
   <footer x-show="isCustomerMode" class="px-8 py-4 mt-auto">
-    <div class="max-w-6xl mx-auto flex items-center justify-between text-sm">
+    <div class="max-w-screen-2xl mx-auto flex items-center justify-between text-sm">
       <span class="text-gray-500">Soundtrack Auto-Volume</span>
       <span class="text-gray-500">Powered by <span class="text-brand-orange">BMAsia</span></span>
     </div>
