@@ -39,6 +39,18 @@
     .customer-mode input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #EFA634; border: none; box-shadow: 0 0 8px rgba(239,166,52,0.3); }
     .customer-mode input[type="range"]:focus { outline: none; }
     .customer-mode input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 12px rgba(239,166,52,0.5); }
+    /* Dual-range slider for volume bounds */
+    .dual-range { position: relative; }
+    .dual-range input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; pointer-events: none; position: absolute; inset: 0; width: 100%; margin: 0; height: 100%; }
+    .dual-range input[type="range"]::-webkit-slider-track { background: transparent; height: 0; }
+    .dual-range input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1); cursor: grab; position: relative; z-index: 1; }
+    .dual-range input[type="range"]::-moz-range-track { background: transparent; height: 0; border: none; }
+    .dual-range input[type="range"]::-moz-range-thumb { pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: #ffffff; border: none; box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1); cursor: grab; }
+    .dual-range input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; box-shadow: 0 0 0 4px rgba(239,166,52,0.2), 0 1px 4px rgba(0,0,0,0.3); }
+    /* Hide number input spinners */
+    .customer-mode input[type="number"]::-webkit-inner-spin-button,
+    .customer-mode input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .customer-mode input[type="number"] { -moz-appearance: textfield; }
   </style>
 </head>
 <body :class="isCustomerMode ? 'bg-brand-dark customer-mode' : 'bg-gray-900'" class="text-gray-100 min-h-screen flex flex-col" x-data="app()" x-init="init()">
@@ -136,70 +148,108 @@
 
               <!-- Zone configs -->
               <template x-for="cfg in (device.configs || [])" :key="cfg.id">
-                <div class="border-t border-white/10 p-5">
-                  <div class="flex items-center justify-between mb-3">
-                    <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
-                    <button @click="toggleZonePause(cfg)"
-                            :class="cfg.isPaused ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
-                            class="px-3 py-1 rounded-full text-xs font-medium border transition hover:opacity-80">
-                      <span x-show="!cfg.isPaused" class="flex items-center gap-1.5">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
-                      </span>
-                      <span x-show="cfg.isPaused" class="flex items-center gap-1.5">
-                        <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg> Resume
-                      </span>
-                    </button>
+                <div class="border-t border-white/10 p-5 lg:p-6">
+                  <!-- Zone header -->
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                      <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
+                      <button @click="toggleZonePause(cfg)"
+                              :class="cfg.isPaused ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
+                              class="px-3 py-1 rounded-full text-xs font-medium border transition hover:opacity-80">
+                        <span x-show="!cfg.isPaused" class="flex items-center gap-1.5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
+                        </span>
+                        <span x-show="cfg.isPaused" class="flex items-center gap-1.5">
+                          <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg> Resume
+                        </span>
+                      </button>
+                    </div>
+                    <!-- Kebab menu -->
+                    <div class="relative" x-data="{ menuOpen: false }">
+                      <button @click="menuOpen = !menuOpen" class="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                      </button>
+                      <div x-show="menuOpen" @click.away="menuOpen = false" x-transition
+                           class="absolute right-0 mt-1 w-40 bg-gray-800 border border-white/10 rounded-lg shadow-xl z-20 py-1">
+                        <button @click="menuOpen = false; deleteConfig(cfg.id, device)"
+                                class="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-white/5 transition">
+                          Remove Zone
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <!-- Volume bar + number -->
-                  <div class="space-y-3" :class="cfg.isPaused ? 'opacity-50' : ''">
-                    <div class="flex items-center gap-3">
-                      <div class="flex items-center gap-0.5 flex-1">
+                  <!-- Two-column layout -->
+                  <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-5 lg:gap-8" :class="cfg.isPaused ? 'opacity-40 pointer-events-none' : ''">
+                    <!-- Left: Volume hero -->
+                    <div class="flex flex-col items-center justify-center lg:py-2">
+                      <span class="text-5xl font-mono font-bold text-white leading-none" x-text="cfg.currentVolume"></span>
+                      <span class="text-xs text-gray-500 mt-1.5 uppercase tracking-wider">Current</span>
+                      <!-- Compact volume bar -->
+                      <div class="flex items-center gap-px mt-4 w-full max-w-[180px]">
                         <template x-for="i in 17" :key="i">
-                          <div class="flex-1 h-5 rounded-sm" :class="(i-1) <= cfg.currentVolume ? 'bg-brand-orange' : 'bg-white/10'"></div>
-                        </template>
-                      </div>
-                      <span class="text-lg font-mono font-bold w-8 text-right" x-text="cfg.currentVolume"></span>
-                    </div>
-
-                    <!-- Sensitivity segmented control -->
-                    <div>
-                      <label class="text-xs text-gray-400 mb-2 block">Sensitivity</label>
-                      <div class="flex gap-1">
-                        <template x-for="i in 5" :key="i">
-                          <button @click="quickUpdateSensitivity(cfg, i)"
-                                  :class="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb) == i ? 'bg-brand-orange text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'"
-                                  class="flex-1 py-2 text-xs rounded-lg transition font-medium"
-                                  x-text="['Very Low', 'Low', 'Medium', 'High', 'Very High'][i-1]">
-                          </button>
+                          <div class="flex-1 h-1.5 rounded-full" :class="(i-1) <= cfg.currentVolume ? 'bg-brand-orange' : 'bg-white/10'"></div>
                         </template>
                       </div>
                     </div>
 
-                    <!-- Reactivity segmented control -->
-                    <div>
-                      <label class="text-xs text-gray-400 mb-2 block">Reactivity</label>
-                      <div class="flex gap-1">
-                        <template x-for="i in 5" :key="i">
-                          <button @click="quickUpdateReactivity(cfg, i)"
-                                  :class="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2) == i ? 'bg-brand-orange text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'"
-                                  class="flex-1 py-2 text-xs rounded-lg transition font-medium"
-                                  x-text="['Very Slow', 'Slow', 'Medium', 'Fast', 'Very Fast'][i-1]">
-                          </button>
-                        </template>
+                    <!-- Right: Settings panel -->
+                    <div class="bg-white/[0.02] rounded-xl p-4 space-y-4">
+                      <!-- Sensitivity -->
+                      <div>
+                        <label class="text-xs text-gray-400 mb-2 block">Sensitivity</label>
+                        <div class="inline-flex bg-white/5 rounded-lg p-0.5 gap-0.5">
+                          <template x-for="i in 5" :key="i">
+                            <button @click="quickUpdateSensitivity(cfg, i)"
+                                    :class="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
+                                    class="px-3 py-1.5 text-xs rounded-md transition font-medium"
+                                    x-text="['V.Low', 'Low', 'Med', 'High', 'V.High'][i-1]">
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+
+                      <!-- Reactivity -->
+                      <div>
+                        <label class="text-xs text-gray-400 mb-2 block">Reactivity</label>
+                        <div class="inline-flex bg-white/5 rounded-lg p-0.5 gap-0.5">
+                          <template x-for="i in 5" :key="i">
+                            <button @click="quickUpdateReactivity(cfg, i)"
+                                    :class="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
+                                    class="px-3 py-1.5 text-xs rounded-md transition font-medium"
+                                    x-text="['V.Slow', 'Slow', 'Med', 'Fast', 'V.Fast'][i-1]">
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+
+                      <!-- Divider -->
+                      <div class="border-t border-white/5"></div>
+
+                      <!-- Volume Range — dual-thumb slider -->
+                      <div>
+                        <div class="flex items-center justify-between mb-2">
+                          <label class="text-xs text-gray-400">Volume Range</label>
+                          <span class="text-xs text-gray-300 font-mono" x-text="cfg.minVolume + ' – ' + cfg.maxVolume"></span>
+                        </div>
+                        <div class="dual-range h-5 flex items-center">
+                          <!-- Track background -->
+                          <div class="absolute inset-x-0 h-1 bg-white/10 rounded-full"></div>
+                          <!-- Active range fill -->
+                          <div class="absolute h-1 bg-brand-orange/60 rounded-full"
+                               :style="'left: ' + (cfg.minVolume / 16 * 100) + '%; right: ' + (100 - cfg.maxVolume / 16 * 100) + '%'"></div>
+                          <!-- Min thumb -->
+                          <input type="range" min="0" max="16" :value="cfg.minVolume"
+                                 @input="if(parseInt($event.target.value) <= cfg.maxVolume) { cfg.minVolume = parseInt($event.target.value); quickUpdateField(cfg, 'minVolume', cfg.minVolume); }">
+                          <!-- Max thumb -->
+                          <input type="range" min="0" max="16" :value="cfg.maxVolume"
+                                 @input="if(parseInt($event.target.value) >= cfg.minVolume) { cfg.maxVolume = parseInt($event.target.value); quickUpdateField(cfg, 'maxVolume', cfg.maxVolume); }">
+                        </div>
+                        <div class="flex justify-between text-[10px] text-gray-600 mt-1">
+                          <span>0</span><span>4</span><span>8</span><span>12</span><span>16</span>
+                        </div>
                       </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                      <div>
-                        <label class="text-xs text-gray-400">Min Volume</label>
-                        <input type="number" :value="cfg.minVolume" @change="quickUpdateField(cfg, 'minVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded px-2 py-1 w-full text-white text-sm">
-                      </div>
-                      <div>
-                        <label class="text-xs text-gray-400">Max Volume</label>
-                        <input type="number" :value="cfg.maxVolume" @change="quickUpdateField(cfg, 'maxVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded px-2 py-1 w-full text-white text-sm">
-                      </div>
-                    </div>
-                    <button @click="deleteConfig(cfg.id, device)" class="text-xs text-gray-500 hover:text-red-400 transition">Remove Zone</button>
                   </div>
                 </div>
               </template>
