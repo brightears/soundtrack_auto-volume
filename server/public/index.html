@@ -894,23 +894,21 @@
 
         async init() {
           await this.loadDevices();
-          // Customer mode: auto-start polling
-          if (this.isCustomerMode) {
-            this.startMonitoring();
-          }
+          this.startMonitoring();
         },
 
         switchTab(newTab) {
-          const oldTab = this.tab;
           this.tab = newTab;
-          if (newTab === 'monitor' && !this.monitoring) this.startMonitoring();
-          else if (oldTab === 'monitor' && newTab !== 'monitor' && this.monitoring) this.stopMonitoring();
         },
 
         startMonitoring() {
           this.monitoring = true;
-          this.loadDevices();
-          this.monitorInterval = setInterval(() => this.loadDevices(), 2000);
+          this.monitorInterval = setInterval(() => {
+            this.loadDevices();
+            if (this.selectedDeviceId && this.tab === 'config') {
+              this.loadDeviceConfigs();
+            }
+          }, 2000);
         },
 
         stopMonitoring() {
