@@ -41,7 +41,7 @@
     .customer-mode input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 12px rgba(239,166,52,0.5); }
   </style>
 </head>
-<body :class="isCustomerMode ? 'bg-brand-dark customer-mode' : 'bg-gray-900'" class="text-gray-100 min-h-screen" x-data="app()" x-init="init()">
+<body :class="isCustomerMode ? 'bg-brand-dark customer-mode' : 'bg-gray-900'" class="text-gray-100 min-h-screen flex flex-col" x-data="app()" x-init="init()">
 
   <!-- Header -->
   <header :class="isCustomerMode ? 'bg-brand-dark' : 'bg-gray-800 border-b border-gray-700'" class="px-8 py-3">
@@ -66,9 +66,10 @@
         <button @click="showHelp = !showHelp" :class="isCustomerMode ? 'w-9 h-9 rounded-full flex items-center justify-center ' + (showHelp ? 'bg-brand-orange/20 text-brand-orange border-brand-orange/50' : 'border-white/15 text-gray-500 hover:text-brand-orange hover:border-brand-orange/40') : 'px-3 py-2 rounded-lg ' + (showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600')" class="text-sm font-medium transition border border-transparent" title="Toggle help tips">?</button>
       </div>
     </div>
+    <div x-show="isCustomerMode" class="h-0.5 bg-gradient-to-r from-brand-orange to-brand-orange/0 mt-3"></div>
   </header>
 
-  <main class="max-w-6xl mx-auto p-6">
+  <main class="max-w-6xl mx-auto p-6 flex-1">
 
     <!-- ==================== CUSTOMER MODE ==================== -->
     <template x-if="isCustomerMode">
@@ -593,6 +594,14 @@
     </div>
 
   </main>
+
+  <!-- Footer (customer mode only) -->
+  <footer x-show="isCustomerMode" class="px-8 py-4 mt-auto">
+    <div class="max-w-6xl mx-auto flex items-center justify-between text-sm">
+      <span class="text-gray-500">Soundtrack Auto-Volume</span>
+      <span class="text-gray-500">Powered by <span class="text-brand-orange">BMAsia</span></span>
+    </div>
+  </footer>
 
   <script>
     const API = window.location.origin + '/api';
