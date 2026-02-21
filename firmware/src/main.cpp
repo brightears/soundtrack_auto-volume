@@ -7,6 +7,8 @@
 #include <Adafruit_XCA9554.h>
 #include <Arduino_GFX_Library.h>
 
+#include <Preferences.h>
+
 #include "pins.h"
 #include "config.h"
 #include "provisioning.h"
@@ -596,6 +598,21 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
             resetProvisioning();
             delay(500);
             ESP.restart();
+          }
+          if (msgType && strcmp(msgType, "set_account") == 0) {
+            const char* newAccountId = rxDoc["accountId"];
+            if (newAccountId) {
+              Preferences prefs;
+              prefs.begin("autovolume", false);
+              prefs.putString(NVS_KEY_ACCOUNT, newAccountId);
+              prefs.end();
+              accountId = String(newAccountId);
+              Serial.printf("Account assigned via server: %s\n", newAccountId);
+              if (displayReady) {
+                gfx->fillScreen(COLOR_BG);
+                drawStaticUI();
+              }
+            }
           }
         }
       }

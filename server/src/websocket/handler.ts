@@ -82,6 +82,16 @@ async function handleRegister(ws: WebSocket, msg: RegisterMessage): Promise<void
       configs: device?.configs || [],
     })
   );
+
+  // Push stored account to device if it didn't send one
+  if (device?.soundtrackAccountId && !msg.accountId) {
+    ws.send(
+      JSON.stringify({
+        type: "set_account",
+        accountId: device.soundtrackAccountId,
+      })
+    );
+  }
 }
 
 async function handleSoundLevel(msg: SoundLevelMessage): Promise<void> {

@@ -61,6 +61,31 @@ deviceRoutes.patch("/:id/name", async (req, res) => {
   }
 });
 
+// Assign Soundtrack account to device
+deviceRoutes.patch("/:id/account", async (req, res) => {
+  try {
+    const { soundtrackAccountId } = req.body;
+    if (typeof soundtrackAccountId !== "string") {
+      return res.status(400).json({ error: "soundtrackAccountId (string) required" });
+    }
+
+    const device = await prisma.device.update({
+      where: { id: req.params.id },
+      data: { soundtrackAccountId },
+    });
+
+    // Push to device via WebSocket if online
+    deviceManager.sendToDevice(device.deviceId, {
+      type: "set_account",
+      accountId: soundtrackAccountId,
+    });
+
+    res.json(device);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to assign account" });
+  }
+});
+
 // Pause/resume device
 deviceRoutes.patch("/:id/pause", async (req, res) => {
   try {

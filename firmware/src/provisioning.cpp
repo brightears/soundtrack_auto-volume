@@ -58,9 +58,9 @@ static void drawProvisioningScreen(Arduino_GFX *gfx, const char* apName) {
   gfx->setCursor(12, 276);
   gfx->print("   automatically");
   gfx->setCursor(12, 300);
-  gfx->print("3. Select your WiFi network,");
+  gfx->print("3. Select your WiFi network");
   gfx->setCursor(12, 316);
-  gfx->print("   enter password & Account ID");
+  gfx->print("   and enter your password");
 
   gfx->setTextColor(COLOR_YELLOW);
   gfx->setCursor(12, 360);
@@ -147,6 +147,10 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
 
   Serial.printf("Starting captive portal: %s\n", apName);
 
+  // Clear any stored WiFi credentials so AP starts cleanly
+  WiFi.disconnect(true, true);
+  delay(200);
+
   // Pre-scan networks for iOS captive portal detection
   Serial.println("Pre-scanning WiFi networks...");
   WiFi.mode(WIFI_STA);
@@ -160,35 +164,16 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
   }
 
   WiFiManager wm;
-
-  // Custom parameter for Account ID
-  WiFiManagerParameter accountParam("account", "Soundtrack Account ID", "", 128);
-  wm.addParameter(&accountParam);
+  wm.resetSettings(); // ensure no stored creds interfere with AP
 
   wm.setConfigPortalTimeout(PORTAL_TIMEOUT);
   wm.setConnectTimeout(20);
 
-  // Start portal
+  // Start portal (WiFi only — account is assigned via admin backend)
   bool connected = wm.autoConnect(apName);
 
   if (connected) {
     Serial.println("WiFi connected via portal!");
-
-    // Save Account ID to NVS — mandatory field
-    String accountId = String(accountParam.getValue());
-    accountId.trim();
-    if (accountId.length() == 0) {
-      Serial.println("Account ID is required but was not provided. Restarting portal...");
-      WiFi.disconnect(true);
-      delay(500);
-      return startCaptivePortal(gfx); // re-enter portal
-    }
-
-    prefs.begin(NVS_NAMESPACE, false);
-    prefs.putString(NVS_KEY_ACCOUNT, accountId);
-    prefs.end();
-    Serial.printf("Account ID saved: %s\n", accountId.c_str());
-
     return true;
   }
 

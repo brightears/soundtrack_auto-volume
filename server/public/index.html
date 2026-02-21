@@ -94,7 +94,7 @@
         <!-- No devices state -->
         <div x-show="devices.length === 0" class="text-center py-16">
           <h2 class="text-2xl font-bold text-white mb-3">Setting Up Your Auto-Volume</h2>
-          <p class="text-gray-400 mb-8 max-w-md mx-auto">Power on your device. It will create a WiFi network called <strong class="text-gray-300">AutoVolume-XXXX</strong>. Connect to it, enter your WiFi password and Account ID, then return here.</p>
+          <p class="text-gray-400 mb-8 max-w-md mx-auto">Power on your device. It will create a WiFi network called <strong class="text-gray-300">AutoVolume-XXXX</strong>. Connect to it, enter your WiFi password, then return here.</p>
           <div class="inline-flex items-center gap-2 text-gray-500 text-sm">
             <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
             Waiting for device to connect...
@@ -312,7 +312,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl mx-auto text-left">
               <div class="glass rounded-2xl p-5">
                 <div class="text-brand-orange font-bold text-lg mb-1">1. Connect</div>
-                <p class="text-sm text-gray-400">Power on your ESP32 device. It will create a WiFi network called <strong class="text-gray-300">AutoVolume-XXXX</strong>. Connect to it and enter your WiFi password.</p>
+                <p class="text-sm text-gray-400">Power on your ESP32 device. It will create a WiFi network called <strong class="text-gray-300">AutoVolume-XXXX</strong>. Connect to it and enter your WiFi password. Then assign a Soundtrack account from here.</p>
               </div>
               <div class="glass rounded-2xl p-5">
                 <div class="text-brand-orange font-bold text-lg mb-1">2. Set Up</div>
@@ -361,16 +361,60 @@
                   </div>
                 </div>
 
-                <div class="border-t border-white/10 px-5 py-3 flex items-center justify-between text-sm">
-                  <div class="flex items-center gap-4">
-                    <span class="text-gray-400" x-text="(device.configs || []).length + ' zone config(s)'"></span>
-                    <button @click="selectDevice(device)" class="text-brand-orange hover:text-brand-orange font-medium">Configure</button>
-                    <template x-if="(device.configs || []).length === 0 && device.isOnline">
-                      <button @click="startWizard(device)" class="text-green-400 hover:text-green-300 font-medium">Quick Setup</button>
-                    </template>
+                <!-- Account assignment -->
+                <div class="border-t border-white/10 px-5 py-3">
+                  <div class="flex items-center justify-between text-sm">
+                    <div class="flex items-center gap-3">
+                      <template x-if="device.soundtrackAccountId">
+                        <div class="flex items-center gap-2">
+                          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/15 text-green-400 border border-green-500/30">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                            <span x-text="device.soundtrackAccountId.length > 20 ? device.soundtrackAccountId.substring(0, 20) + '...' : device.soundtrackAccountId"></span>
+                          </span>
+                          <button @click="assigningAccountForDevice = device.id; accountSearch = ''; accounts = []" class="text-xs text-gray-500 hover:text-gray-300 transition">Change</button>
+                        </div>
+                      </template>
+                      <template x-if="!device.soundtrackAccountId">
+                        <button @click="assigningAccountForDevice = device.id; accountSearch = ''; accounts = []"
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/25 transition">
+                          Unassigned — Assign Account
+                        </button>
+                      </template>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-gray-500" x-text="(device.configs || []).length + ' zone(s)'"></span>
+                      <template x-if="device.firmware">
+                        <span class="text-xs text-gray-600" x-text="'fw ' + device.firmware"></span>
+                      </template>
+                    </div>
                   </div>
-                  <template x-if="device.firmware">
-                    <span class="text-xs text-gray-600" x-text="'fw: ' + device.firmware"></span>
+
+                  <!-- Inline account search -->
+                  <div x-show="assigningAccountForDevice === device.id" x-transition class="mt-3 space-y-2">
+                    <div class="flex gap-2">
+                      <input type="text" x-model="accountSearch" @keydown.enter="searchAccounts()" placeholder="Search Soundtrack account..."
+                             class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex-1 text-sm text-white placeholder-gray-500">
+                      <button @click="searchAccounts()" :disabled="searching" class="bg-brand-orange hover:bg-brand-orange-dark disabled:bg-white/5 disabled:text-gray-500 px-3 py-2 rounded-lg text-xs font-medium transition">
+                        <span x-show="!searching">Search</span><span x-show="searching">...</span>
+                      </button>
+                      <button @click="assigningAccountForDevice = null" class="text-gray-500 hover:text-gray-300 px-2 text-xs">Cancel</button>
+                    </div>
+                    <div x-show="accounts.length > 0" class="space-y-1 max-h-40 overflow-y-auto">
+                      <template x-for="acct in accounts" :key="acct.id">
+                        <button @click="assignAccount(device, acct.id)" class="w-full text-left bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 text-sm transition">
+                          <span x-text="acct.name" class="text-white"></span>
+                          <span x-text="acct.id" class="text-xs text-gray-500 ml-2"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="border-t border-white/10 px-5 py-3 flex items-center gap-4 text-sm">
+                  <button @click="selectDevice(device)" class="text-brand-orange hover:text-brand-orange font-medium">Configure</button>
+                  <template x-if="(device.configs || []).length === 0 && device.isOnline">
+                    <button @click="startWizard(device)" class="text-green-400 hover:text-green-300 font-medium">Quick Setup</button>
                   </template>
                 </div>
               </div>
@@ -841,6 +885,9 @@
         showHelp: false,
         wizard: { active: false, step: 1, deviceId: null, deviceName: '' },
 
+        // Admin account assignment
+        assigningAccountForDevice: null,
+
         // Customer mode state
         addingZoneForDevice: null,
         customerZones: [],
@@ -960,6 +1007,20 @@
           } catch (e) { this.showToast('Failed to update', 'error'); }
         },
 
+        // --- Account assignment (admin mode) ---
+        async assignAccount(device, accountId) {
+          try {
+            await fetch(`${API}/devices/${device.id}/account`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ soundtrackAccountId: accountId }),
+            });
+            device.soundtrackAccountId = accountId;
+            this.assigningAccountForDevice = null;
+            this.showToast('Account assigned' + (device.isOnline ? ' — pushed to device' : ' — will sync when device connects'), 'success');
+          } catch (e) { this.showToast('Failed to assign account', 'error'); }
+        },
+
         // --- Wizard (admin mode) ---
         startWizard(device) {
           this.wizard = { active: true, step: 1, deviceId: device.id, deviceName: this.deviceDisplayName(device) };
@@ -972,6 +1033,9 @@
           const zone = this.zones.find(z => z.id === this.selectedZoneId);
           const account = this.accounts.find(a => a.id === this.selectedAccountId);
           try {
+            // Assign account to device
+            await fetch(`${API}/devices/${this.wizard.deviceId}/account`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ soundtrackAccountId: this.selectedAccountId }) });
+            // Create zone config
             const res = await fetch(`${API}/configs/quick-setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceId: this.wizard.deviceId, soundtrackAccountId: this.selectedAccountId, soundtrackAccountName: account?.name || '', soundtrackZoneId: this.selectedZoneId, soundtrackZoneName: zone?.name || '' }) });
             if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Setup failed'); }
             this.wizard.active = false;
