@@ -45,7 +45,7 @@
 
   <!-- Header -->
   <header :class="isCustomerMode ? 'bg-brand-dark' : 'bg-gray-800 border-b border-gray-700'" class="px-8 py-3">
-    <div :class="isCustomerMode ? 'max-w-screen-2xl' : 'max-w-6xl'" class="mx-auto flex items-center justify-between">
+    <div :class="!isCustomerMode ? 'max-w-6xl mx-auto' : ''" class="flex items-center justify-between">
       <!-- Customer mode: logo only -->
       <template x-if="isCustomerMode">
         <img src="/logo.png" alt="BMAsia" class="h-10">
@@ -69,7 +69,7 @@
     <div x-show="isCustomerMode" class="h-0.5 bg-gradient-to-r from-brand-orange to-brand-orange/0 mt-3"></div>
   </header>
 
-  <main :class="isCustomerMode ? 'max-w-screen-2xl px-4 sm:px-8 lg:px-12 py-6' : 'max-w-6xl p-6'" class="mx-auto flex-1">
+  <main :class="isCustomerMode ? 'px-4 md:px-8 lg:px-16 py-6' : 'max-w-6xl mx-auto p-6'" class="flex-1">
 
     <!-- ==================== CUSTOMER MODE ==================== -->
     <template x-if="isCustomerMode">
@@ -590,7 +590,7 @@
 
   <!-- Footer (customer mode only) -->
   <footer x-show="isCustomerMode" class="px-8 py-4 mt-auto">
-    <div class="max-w-screen-2xl mx-auto flex items-center justify-between text-sm">
+    <div class="flex items-center justify-between text-sm">
       <span class="text-gray-500">Soundtrack Auto-Volume</span>
       <span class="text-gray-500">Powered by <span class="text-brand-orange">BMAsia</span></span>
     </div>
