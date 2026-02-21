@@ -174,14 +174,20 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
   if (connected) {
     Serial.println("WiFi connected via portal!");
 
-    // Save Account ID to NVS
+    // Save Account ID to NVS — mandatory field
     String accountId = String(accountParam.getValue());
-    if (accountId.length() > 0) {
-      prefs.begin(NVS_NAMESPACE, false);
-      prefs.putString(NVS_KEY_ACCOUNT, accountId);
-      prefs.end();
-      Serial.printf("Account ID saved: %s\n", accountId.c_str());
+    accountId.trim();
+    if (accountId.length() == 0) {
+      Serial.println("Account ID is required but was not provided. Restarting portal...");
+      WiFi.disconnect(true);
+      delay(500);
+      return startCaptivePortal(gfx); // re-enter portal
     }
+
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putString(NVS_KEY_ACCOUNT, accountId);
+    prefs.end();
+    Serial.printf("Account ID saved: %s\n", accountId.c_str());
 
     return true;
   }
