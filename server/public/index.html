@@ -147,13 +147,13 @@
                     <div class="flex items-center gap-3">
                       <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
                       <button @click="toggleZonePause(cfg)"
-                              :class="cfg.isPaused ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
+                              :class="!cfg.isEnabled ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
                               class="px-3 py-1 rounded-full text-xs font-medium border transition hover:opacity-80">
-                        <span x-show="!cfg.isPaused" class="flex items-center gap-1.5">
+                        <span x-show="cfg.isEnabled" class="flex items-center gap-1.5">
                           <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
                         </span>
-                        <span x-show="cfg.isPaused" class="flex items-center gap-1.5">
-                          <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg> Resume
+                        <span x-show="!cfg.isEnabled" class="flex items-center gap-1.5">
+                          <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg> Enable
                         </span>
                       </button>
                     </div>
@@ -173,7 +173,7 @@
                   </div>
 
                   <!-- Two-column layout -->
-                  <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-5 lg:gap-8" :class="cfg.isPaused ? 'opacity-40 pointer-events-none' : ''">
+                  <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-5 lg:gap-8" :class="!cfg.isEnabled ? 'opacity-40 pointer-events-none' : ''">
                     <!-- Left: Volume hero -->
                     <div class="flex flex-col items-center justify-center lg:py-2">
                       <span class="text-5xl font-mono font-bold text-white leading-none" x-text="cfg.currentVolume"></span>
@@ -666,21 +666,14 @@
                     <div class="flex items-center justify-between mb-4">
                       <div class="flex items-center gap-3">
                         <span class="text-sm font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
-                        <button @click="toggleZonePause(cfg)"
-                                :class="cfg.isPaused ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
-                                class="px-3 py-1 rounded-full text-xs font-medium border transition hover:opacity-80">
-                          <span x-show="!cfg.isPaused" class="flex items-center gap-1.5">
-                            <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
-                          </span>
-                          <span x-show="cfg.isPaused" class="flex items-center gap-1.5">
-                            <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg> Resume
-                          </span>
-                        </button>
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-green-500/15 text-green-400 border-green-500/30">
+                          <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
+                        </span>
                       </div>
                     </div>
 
                     <!-- Two-column layout -->
-                    <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-5 lg:gap-8" :class="cfg.isPaused ? 'opacity-40 pointer-events-none' : ''">
+                    <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-5 lg:gap-8">
                       <!-- Left: Volume hero -->
                       <div class="flex flex-col items-center justify-center lg:py-2">
                         <span class="text-5xl font-mono font-bold text-white leading-none" x-text="cfg.currentVolume"></span>
@@ -1046,11 +1039,10 @@
         // --- Zone controls ---
         async toggleZonePause(cfg) {
           try {
-            const res = await fetch(`${API}/configs/${cfg.id}/pause`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPaused: !cfg.isPaused }) });
-            if (!res.ok) throw new Error('Failed');
-            cfg.isPaused = !cfg.isPaused;
-            this.showToast(cfg.isPaused ? 'Zone paused' : 'Zone resumed', 'success');
-          } catch (e) { this.showToast('Failed to update pause state', 'error'); }
+            await fetch(`${API}/configs/${cfg.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isEnabled: !cfg.isEnabled }) });
+            cfg.isEnabled = !cfg.isEnabled;
+            this.showToast(cfg.isEnabled ? 'Zone enabled' : 'Zone disabled', 'success');
+          } catch (e) { this.showToast('Failed to update zone', 'error'); }
         },
 
         async quickUpdateSensitivity(cfg, level) {
