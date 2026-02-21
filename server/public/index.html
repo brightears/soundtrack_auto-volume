@@ -196,7 +196,7 @@
                             <button @click="quickUpdateSensitivity(cfg, i)"
                                     :class="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                                     class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                                    x-text="['V.Low', 'Low', 'Med', 'High', 'V.High'][i-1]">
+                                    x-text="['Lowest', 'Low', 'Medium', 'High', 'Highest'][i-1]">
                             </button>
                           </template>
                         </div>
@@ -210,7 +210,7 @@
                             <button @click="quickUpdateReactivity(cfg, i)"
                                     :class="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                                     class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                                    x-text="['V.Slow', 'Slow', 'Med', 'Fast', 'V.Fast'][i-1]">
+                                    x-text="['Slowest', 'Slow', 'Medium', 'Fast', 'Fastest'][i-1]">
                             </button>
                           </template>
                         </div>
@@ -460,7 +460,7 @@
                             <button @click="quickUpdateSensitivity(cfg, i)"
                                     :class="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                                     class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                                    x-text="['V.Low', 'Low', 'Med', 'High', 'V.High'][i-1]">
+                                    x-text="['Lowest', 'Low', 'Medium', 'High', 'Highest'][i-1]">
                             </button>
                           </template>
                         </div>
@@ -474,7 +474,7 @@
                             <button @click="quickUpdateReactivity(cfg, i)"
                                     :class="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                                     class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                                    x-text="['V.Slow', 'Slow', 'Med', 'Fast', 'V.Fast'][i-1]">
+                                    x-text="['Slowest', 'Slow', 'Medium', 'Fast', 'Fastest'][i-1]">
                             </button>
                           </template>
                         </div>
@@ -541,7 +541,7 @@
                     <button @click="newConfig.sensitivity = i"
                             :class="newConfig.sensitivity == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                             class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                            x-text="['V.Low', 'Low', 'Med', 'High', 'V.High'][i-1]">
+                            x-text="['Lowest', 'Low', 'Medium', 'High', 'Highest'][i-1]">
                     </button>
                   </template>
                 </div>
@@ -555,7 +555,7 @@
                     <button @click="newConfig.reactivity = i"
                             :class="newConfig.reactivity == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                             class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                            x-text="['V.Slow', 'Slow', 'Med', 'Fast', 'V.Fast'][i-1]">
+                            x-text="['Slowest', 'Slow', 'Medium', 'Fast', 'Fastest'][i-1]">
                     </button>
                   </template>
                 </div>
@@ -658,7 +658,7 @@
                               <button @click="quickUpdateSensitivity(cfg, i)"
                                       :class="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                                       class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                                      x-text="['V.Low', 'Low', 'Med', 'High', 'V.High'][i-1]">
+                                      x-text="['Lowest', 'Low', 'Medium', 'High', 'Highest'][i-1]">
                               </button>
                             </template>
                           </div>
@@ -672,7 +672,7 @@
                               <button @click="quickUpdateReactivity(cfg, i)"
                                       :class="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2) == i ? 'bg-brand-orange text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'"
                                       class="px-3 py-1.5 text-xs rounded-md transition font-medium"
-                                      x-text="['V.Slow', 'Slow', 'Med', 'Fast', 'V.Fast'][i-1]">
+                                      x-text="['Slowest', 'Slow', 'Medium', 'Fast', 'Fastest'][i-1]">
                               </button>
                             </template>
                           </div>
