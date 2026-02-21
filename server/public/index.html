@@ -138,21 +138,17 @@
               <template x-for="cfg in (device.configs || [])" :key="cfg.id">
                 <div class="border-t border-white/10 p-5">
                   <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
-                      <template x-if="cfg.isPaused">
-                        <span class="text-xs bg-yellow-600/30 text-yellow-400 px-2 py-0.5 rounded">PAUSED</span>
-                      </template>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <button @click="toggleZonePause(cfg)" :class="cfg.isPaused ? 'text-green-400 hover:text-green-300' : 'text-gray-400 hover:text-yellow-400'" class="transition" :title="cfg.isPaused ? 'Resume auto-volume' : 'Pause auto-volume'">
-                        <svg x-show="!cfg.isPaused" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                        <svg x-show="cfg.isPaused" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
-                      </button>
-                      <button @click="deleteConfig(cfg.id, device)" class="text-red-400 hover:text-red-300 transition" title="Remove zone">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-                      </button>
-                    </div>
+                    <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
+                    <button @click="toggleZonePause(cfg)"
+                            :class="cfg.isPaused ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
+                            class="px-3 py-1 rounded-full text-xs font-medium border transition hover:opacity-80">
+                      <span x-show="!cfg.isPaused" class="flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
+                      </span>
+                      <span x-show="cfg.isPaused" class="flex items-center gap-1.5">
+                        <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg> Resume
+                      </span>
+                    </button>
                   </div>
 
                   <!-- Volume bar + number -->
@@ -166,23 +162,31 @@
                       <span class="text-lg font-mono font-bold w-8 text-right" x-text="cfg.currentVolume"></span>
                     </div>
 
-                    <!-- Inline controls -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <div class="flex justify-between text-xs text-gray-400 mb-1">
-                          <span>Sensitivity</span>
-                          <span x-text="sensitivityLabel(paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb))"></span>
-                        </div>
-                        <input type="range" :value="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb)" @change="quickUpdateSensitivity(cfg, $event.target.value)" min="1" max="5" step="1" class="w-full">
-                        <div class="flex justify-between text-xs text-gray-600"><span>Low</span><span>High</span></div>
+                    <!-- Sensitivity segmented control -->
+                    <div>
+                      <label class="text-xs text-gray-400 mb-2 block">Sensitivity</label>
+                      <div class="flex gap-1">
+                        <template x-for="i in 5" :key="i">
+                          <button @click="quickUpdateSensitivity(cfg, i)"
+                                  :class="paramsToSensitivity(cfg.quietThresholdDb, cfg.loudThresholdDb) == i ? 'bg-brand-orange text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'"
+                                  class="flex-1 py-2 text-xs rounded-lg transition font-medium"
+                                  x-text="['Very Low', 'Low', 'Medium', 'High', 'Very High'][i-1]">
+                          </button>
+                        </template>
                       </div>
-                      <div>
-                        <div class="flex justify-between text-xs text-gray-400 mb-1">
-                          <span>Reactivity</span>
-                          <span x-text="reactivityLabel(paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2))"></span>
-                        </div>
-                        <input type="range" :value="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2)" @change="quickUpdateReactivity(cfg, $event.target.value)" min="1" max="5" step="1" class="w-full">
-                        <div class="flex justify-between text-xs text-gray-600"><span>Slow</span><span>Fast</span></div>
+                    </div>
+
+                    <!-- Reactivity segmented control -->
+                    <div>
+                      <label class="text-xs text-gray-400 mb-2 block">Reactivity</label>
+                      <div class="flex gap-1">
+                        <template x-for="i in 5" :key="i">
+                          <button @click="quickUpdateReactivity(cfg, i)"
+                                  :class="paramsToReactivity(cfg.smoothingFactor, cfg.sustainCount || 2) == i ? 'bg-brand-orange text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'"
+                                  class="flex-1 py-2 text-xs rounded-lg transition font-medium"
+                                  x-text="['Very Slow', 'Slow', 'Medium', 'Fast', 'Very Fast'][i-1]">
+                          </button>
+                        </template>
                       </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -195,6 +199,7 @@
                         <input type="number" :value="cfg.maxVolume" @change="quickUpdateField(cfg, 'maxVolume', parseInt($event.target.value))" min="0" max="16" class="bg-white/5 border border-white/10 rounded px-2 py-1 w-full text-white text-sm">
                       </div>
                     </div>
+                    <button @click="deleteConfig(cfg.id, device)" class="text-xs text-gray-500 hover:text-red-400 transition">Remove Zone</button>
                   </div>
                 </div>
               </template>
