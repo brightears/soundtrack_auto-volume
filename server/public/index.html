@@ -44,14 +44,11 @@
 <body :class="isCustomerMode ? 'bg-brand-dark customer-mode' : 'bg-gray-900'" class="text-gray-100 min-h-screen" x-data="app()" x-init="init()">
 
   <!-- Header -->
-  <header :class="isCustomerMode ? 'bg-brand-dark border-white/10' : 'bg-gray-800 border-gray-700'" class="border-b px-6 py-4">
+  <header :class="isCustomerMode ? 'bg-brand-dark' : 'bg-gray-800 border-b border-gray-700'" class="px-8 py-3">
     <div class="max-w-6xl mx-auto flex items-center justify-between">
-      <!-- Customer mode: BMAsia logo -->
+      <!-- Customer mode: logo only -->
       <template x-if="isCustomerMode">
-        <div class="flex items-end gap-2 pb-0.5">
-          <img src="/logo.png" alt="BMAsia" class="h-8">
-          <span class="text-gray-500 text-xs font-light tracking-wider uppercase mb-px">Auto-Volume</span>
-        </div>
+        <img src="/logo.png" alt="BMAsia" class="h-10">
       </template>
       <!-- Admin mode: text title -->
       <template x-if="!isCustomerMode">
@@ -66,7 +63,7 @@
             <button @click="switchTab('monitor')" :class="tab === 'monitor' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'" class="px-4 py-2 rounded text-sm font-medium transition">Monitor</button>
           </div>
         </template>
-        <button @click="showHelp = !showHelp" :class="isCustomerMode ? (showHelp ? 'bg-brand-orange/20 text-brand-orange border-brand-orange/50' : 'border-white/20 text-gray-400 hover:text-brand-orange hover:border-brand-orange/50') : (showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600')" class="px-3 py-2 rounded-lg text-sm transition ml-2 border border-transparent" title="Toggle help tips">?</button>
+        <button @click="showHelp = !showHelp" :class="isCustomerMode ? 'w-9 h-9 rounded-full flex items-center justify-center ' + (showHelp ? 'bg-brand-orange/20 text-brand-orange border-brand-orange/50' : 'border-white/15 text-gray-500 hover:text-brand-orange hover:border-brand-orange/40') : 'px-3 py-2 rounded-lg ' + (showHelp ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600')" class="text-sm font-medium transition border border-transparent" title="Toggle help tips">?</button>
       </div>
     </div>
   </header>
