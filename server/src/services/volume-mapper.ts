@@ -38,6 +38,12 @@ export class VolumeMapper {
       return { volume: -1, apiCalled: false };
     }
 
+    // Noise floor gate: skip readings well below the active range
+    if (dbFS < config.quietThresholdDb - 3) {
+      const state = this.zoneStates.get(zoneId);
+      return { volume: state?.currentVolume ?? config.minVolume, apiCalled: false };
+    }
+
     // Get or create zone state
     let state = this.zoneStates.get(zoneId);
     if (!state) {
@@ -52,9 +58,13 @@ export class VolumeMapper {
       this.zoneStates.set(zoneId, state);
     }
 
-    // 1. Apply EMA smoothing
-    state.smoothedDb =
-      config.smoothingFactor * dbFS + (1 - config.smoothingFactor) * state.smoothedDb;
+    // 1. Apply asymmetric EMA smoothing
+    //    Attack (getting louder): faster response (1.5x smoothing factor)
+    //    Release (getting quieter): slower response (0.5x smoothing factor)
+    const alpha = dbFS > state.smoothedDb
+      ? Math.min(config.smoothingFactor * 1.5, 0.9)  // attack: faster
+      : config.smoothingFactor * 0.5;                  // release: slower
+    state.smoothedDb = alpha * dbFS + (1 - alpha) * state.smoothedDb;
 
     // 2. Map smoothed dB to volume using logarithmic curve
     const mappedVolume = this.mapDbToVolume(
@@ -88,6 +98,13 @@ export class VolumeMapper {
 
     // Only apply change after 2+ sustained readings
     if (state.sustainCount >= config.sustainThreshold && state.pendingVolume !== null) {
+      // Clamp to max 2 volume steps per change (prevents jarring jumps)
+      const maxStep = 2;
+      const diff = state.pendingVolume - state.currentVolume;
+      if (Math.abs(diff) > maxStep) {
+        state.pendingVolume = state.currentVolume + (diff > 0 ? maxStep : -maxStep);
+      }
+
       const now = Date.now();
       // Rate limit: max 1 API call per 2 seconds per zone
       if (now - state.lastApiCallTime >= 2000) {
