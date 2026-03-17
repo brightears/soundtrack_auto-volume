@@ -1136,11 +1136,11 @@
           return map[level] || map[3];
         },
         reactivityToParams(level) {
-          const map = { 1: { smoothingFactor: 0.1, sustainCount: 4 }, 2: { smoothingFactor: 0.2, sustainCount: 3 }, 3: { smoothingFactor: 0.3, sustainCount: 2 }, 4: { smoothingFactor: 0.5, sustainCount: 2 }, 5: { smoothingFactor: 0.7, sustainCount: 1 } };
+          const map = { 1: { smoothingFactor: 0.1, sustainCount: 16 }, 2: { smoothingFactor: 0.2, sustainCount: 12 }, 3: { smoothingFactor: 0.3, sustainCount: 8 }, 4: { smoothingFactor: 0.5, sustainCount: 4 }, 5: { smoothingFactor: 0.7, sustainCount: 1 } };
           return map[level] || map[3];
         },
         paramsToSensitivity(quietDb, loudDb) { const r = loudDb - quietDb; if (r >= 43) return 1; if (r >= 33) return 2; if (r >= 25) return 3; if (r >= 18) return 4; return 5; },
-        paramsToReactivity(sf, sc) { if (sf <= 0.15) return 1; if (sf <= 0.25) return 2; if (sf <= 0.4) return 3; if (sf <= 0.6) return 4; return 5; },
+        paramsToReactivity(sf, sc) { if (sc >= 14) return 1; if (sc >= 10) return 2; if (sc >= 6) return 3; if (sc >= 2) return 4; return 5; },
         sensitivityLabel(l) { return ['', 'Very Low', 'Low', 'Medium', 'High', 'Very High'][l] || 'Medium'; },
         reactivityLabel(l) { return ['', 'Very Slow', 'Slow', 'Medium', 'Fast', 'Very Fast'][l] || 'Medium'; },
 
