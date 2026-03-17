@@ -372,6 +372,10 @@
                             <span x-text="device.soundtrackAccountId.length > 20 ? device.soundtrackAccountId.substring(0, 20) + '...' : device.soundtrackAccountId"></span>
                           </span>
                           <button @click="assigningAccountForDevice = device.id; accountSearch = ''; accounts = []" class="text-xs text-gray-500 hover:text-gray-300 transition">Change</button>
+                          <button @click="navigator.clipboard.writeText(window.location.origin + '/?account=' + encodeURIComponent(device.soundtrackAccountId)); showToast('Customer link copied!', 'success')" class="text-xs text-gray-500 hover:text-brand-orange transition" title="Copy customer dashboard link">
+                            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-1.102-4.242a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                            Copy Link
+                          </button>
                         </div>
                       </template>
                       <template x-if="!device.soundtrackAccountId">
