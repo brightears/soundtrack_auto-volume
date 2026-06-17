@@ -1,13 +1,27 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { prisma } from "../db";
 import { deviceManager } from "../websocket/handler";
+import { requireAuth, requireAdmin, scopedAccountId } from "../auth";
 
 export const deviceRoutes = Router();
 
-// List devices (optionally filtered by account)
-deviceRoutes.get("/", async (req, res) => {
+// A customer may only act on devices belonging to their own account.
+// Admin (or auth disabled) → scope is null → always allowed.
+async function deviceAllowed(req: Request, deviceUuid: string): Promise<boolean> {
+  const scope = scopedAccountId(req);
+  if (scope === null) return true;
+  const d = await prisma.device.findUnique({
+    where: { id: deviceUuid },
+    select: { soundtrackAccountId: true },
+  });
+  return !!d && d.soundtrackAccountId === scope;
+}
+
+// List devices. Customers are forced to their own account; admins may filter.
+deviceRoutes.get("/", requireAuth, async (req, res) => {
   try {
-    const accountId = req.query.account as string | undefined;
+    const scope = scopedAccountId(req);
+    const accountId = scope ?? (req.query.account as string | undefined);
     const devices = await prisma.device.findMany({
       where: accountId ? { soundtrackAccountId: accountId } : undefined,
       include: { configs: true },
@@ -20,8 +34,9 @@ deviceRoutes.get("/", async (req, res) => {
 });
 
 // Get single device
-deviceRoutes.get("/:id", async (req, res) => {
+deviceRoutes.get("/:id", requireAuth, async (req: Request<{ id: string }>, res) => {
   try {
+    if (!(await deviceAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     const device = await prisma.device.findUnique({
       where: { id: req.params.id },
       include: { configs: true },
@@ -33,8 +48,8 @@ deviceRoutes.get("/:id", async (req, res) => {
   }
 });
 
-// Delete device and its configs
-deviceRoutes.delete("/:id", async (req, res) => {
+// Delete device and its configs — ADMIN ONLY
+deviceRoutes.delete("/:id", requireAdmin, async (req: Request<{ id: string }>, res) => {
   try {
     await prisma.zoneConfig.deleteMany({ where: { deviceId: req.params.id } });
     await prisma.device.delete({ where: { id: req.params.id } });
@@ -45,8 +60,9 @@ deviceRoutes.delete("/:id", async (req, res) => {
 });
 
 // Rename device
-deviceRoutes.patch("/:id/name", async (req, res) => {
+deviceRoutes.patch("/:id/name", requireAuth, async (req: Request<{ id: string }>, res) => {
   try {
+    if (!(await deviceAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     const { name } = req.body;
     if (typeof name !== "string") return res.status(400).json({ error: "name required" });
 
@@ -60,8 +76,8 @@ deviceRoutes.patch("/:id/name", async (req, res) => {
   }
 });
 
-// Assign Soundtrack account to device
-deviceRoutes.patch("/:id/account", async (req, res) => {
+// Assign Soundtrack account to device — ADMIN ONLY
+deviceRoutes.patch("/:id/account", requireAdmin, async (req: Request<{ id: string }>, res) => {
   try {
     const { soundtrackAccountId } = req.body;
     if (typeof soundtrackAccountId !== "string") {
@@ -86,8 +102,9 @@ deviceRoutes.patch("/:id/account", async (req, res) => {
 });
 
 // Pause/resume device
-deviceRoutes.patch("/:id/pause", async (req, res) => {
+deviceRoutes.patch("/:id/pause", requireAuth, async (req: Request<{ id: string }>, res) => {
   try {
+    if (!(await deviceAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     const { isPaused } = req.body;
     if (typeof isPaused !== "boolean") return res.status(400).json({ error: "isPaused (boolean) required" });
 
@@ -101,8 +118,8 @@ deviceRoutes.patch("/:id/pause", async (req, res) => {
   }
 });
 
-// Factory reset device (sends command via WebSocket)
-deviceRoutes.post("/:id/reset", async (req, res) => {
+// Factory reset device (sends command via WebSocket) — ADMIN ONLY (bricks WiFi)
+deviceRoutes.post("/:id/reset", requireAdmin, async (req: Request<{ id: string }>, res) => {
   try {
     const device = await prisma.device.findUnique({ where: { id: req.params.id } });
     if (!device) return res.status(404).json({ error: "Device not found" });
@@ -114,8 +131,8 @@ deviceRoutes.post("/:id/reset", async (req, res) => {
   }
 });
 
-// Register new device (also used by ESP32 via WebSocket, but available via REST too)
-deviceRoutes.post("/", async (req, res) => {
+// Register new device via REST — ADMIN ONLY (devices normally register over WS)
+deviceRoutes.post("/", requireAdmin, async (req, res) => {
   try {
     const { deviceId, name } = req.body;
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });

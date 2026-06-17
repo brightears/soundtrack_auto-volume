@@ -1,11 +1,12 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { SoundtrackService } from "../services/soundtrack";
+import { requireAdmin, requireAuth, canAccessAccount } from "../auth";
 
 export const soundtrackRoutes = Router();
 const soundtrack = new SoundtrackService();
 
-// Search accounts by name
-soundtrackRoutes.get("/accounts", async (req, res) => {
+// Search accounts by name — ADMIN ONLY (enumerates the 900+ master-token accounts)
+soundtrackRoutes.get("/accounts", requireAdmin, async (req, res) => {
   try {
     const query = req.query.q as string;
     if (!query) return res.status(400).json({ error: "Query parameter 'q' required" });
@@ -19,8 +20,11 @@ soundtrackRoutes.get("/accounts", async (req, res) => {
   }
 });
 
-// List zones for an account
-soundtrackRoutes.get("/accounts/:accountId/zones", async (req, res) => {
+// List zones for an account — customers may only list their own account's zones
+soundtrackRoutes.get("/accounts/:accountId/zones", requireAuth, async (req: Request<{ accountId: string }>, res) => {
+  if (!canAccessAccount(req, req.params.accountId)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
   try {
     const zones = await soundtrack.getZones(req.params.accountId);
     res.json(zones);
@@ -30,8 +34,8 @@ soundtrackRoutes.get("/accounts/:accountId/zones", async (req, res) => {
   }
 });
 
-// Set volume for a zone (manual override, for testing)
-soundtrackRoutes.post("/zones/:zoneId/volume", async (req, res) => {
+// Set volume for a zone (manual override, for testing) — ADMIN ONLY
+soundtrackRoutes.post("/zones/:zoneId/volume", requireAdmin, async (req: Request<{ zoneId: string }>, res) => {
   try {
     const { volume } = req.body;
     if (volume === undefined || volume < 0 || volume > 16) {

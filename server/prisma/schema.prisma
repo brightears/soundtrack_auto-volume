@@ -22,6 +22,19 @@ model Device {
   updatedAt           DateTime     @updatedAt
 }
 
+// A per-Soundtrack-account customer login. Admin-provisioned: BMAsia creates one
+// access code per account and hands it to the venue. The code (hashed) scopes the
+// customer's dashboard session to exactly this account, replacing the old
+// guessable ?account= URL.
+model Customer {
+  id                  String   @id @default(uuid())
+  soundtrackAccountId String   @unique
+  name                String?
+  accessCodeHash      String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
 model ZoneConfig {
   id                    String   @id @default(uuid())
   device                Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)

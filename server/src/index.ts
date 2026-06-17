@@ -8,13 +8,24 @@ import { setupWebSocket } from "./websocket/handler";
 import { deviceRoutes } from "./routes/devices";
 import { configRoutes } from "./routes/configs";
 import { soundtrackRoutes } from "./routes/soundtrack";
+import { authRoutes } from "./routes/auth";
+import { customerRoutes } from "./routes/customers";
+import { attachAuth, logAuthStatus } from "./auth";
 
 const app = express();
 const server = http.createServer(app);
 
 // Middleware
-app.use(cors());
+// Same-origin app: cross-origin is disabled by default (most secure, and required
+// for cookie auth — wildcard CORS can't carry credentials). Add comma-separated
+// origins via CORS_ORIGINS only if you ever need genuine cross-origin access.
+const corsOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : false, credentials: true }));
 app.use(express.json());
+app.use(attachAuth); // resolve req.auth from the session cookie (never blocks)
 
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, "../public")));
@@ -25,6 +36,8 @@ app.get("/health", (_req, res) => {
 });
 
 // API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/customers", customerRoutes);
 app.use("/api/devices", deviceRoutes);
 app.use("/api/configs", configRoutes);
 app.use("/api/soundtrack", soundtrackRoutes);
@@ -66,4 +79,5 @@ server.listen(config.port, () => {
   console.log(`Server running on port ${config.port}`);
   console.log(`Environment: ${config.nodeEnv}`);
   console.log(`WebSocket ready on ws://localhost:${config.port}/ws`);
+  logAuthStatus();
 });

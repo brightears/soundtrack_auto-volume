@@ -1,11 +1,34 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { prisma } from "../db";
+import { requireAuth, scopedAccountId, canAccessAccount } from "../auth";
 
 export const configRoutes = Router();
 
+// Ownership helpers. scope === null means admin (or auth disabled) → allowed.
+async function deviceAllowed(req: Request, deviceUuid: string): Promise<boolean> {
+  const scope = scopedAccountId(req);
+  if (scope === null) return true;
+  const d = await prisma.device.findUnique({
+    where: { id: deviceUuid },
+    select: { soundtrackAccountId: true },
+  });
+  return !!d && d.soundtrackAccountId === scope;
+}
+
+async function configAllowed(req: Request, configId: string): Promise<boolean> {
+  const scope = scopedAccountId(req);
+  if (scope === null) return true;
+  const cfg = await prisma.zoneConfig.findUnique({
+    where: { id: configId },
+    select: { soundtrackAccountId: true },
+  });
+  return !!cfg && cfg.soundtrackAccountId === scope;
+}
+
 // Get configs for a device
-configRoutes.get("/device/:deviceId", async (req, res) => {
+configRoutes.get("/device/:deviceId", requireAuth, async (req: Request<{ deviceId: string }>, res) => {
   try {
+    if (!(await deviceAllowed(req, req.params.deviceId))) return res.status(403).json({ error: "Forbidden" });
     const configs = await prisma.zoneConfig.findMany({
       where: { deviceId: req.params.deviceId },
       orderBy: { createdAt: "desc" },
@@ -17,7 +40,7 @@ configRoutes.get("/device/:deviceId", async (req, res) => {
 });
 
 // Create zone config
-configRoutes.post("/", async (req, res) => {
+configRoutes.post("/", requireAuth, async (req, res) => {
   try {
     const {
       deviceId,
@@ -36,6 +59,11 @@ configRoutes.post("/", async (req, res) => {
 
     if (!deviceId || !soundtrackAccountId || !soundtrackZoneId) {
       return res.status(400).json({ error: "deviceId, soundtrackAccountId, and soundtrackZoneId required" });
+    }
+
+    // Customers may only configure their own account's devices.
+    if (!canAccessAccount(req, soundtrackAccountId) || !(await deviceAllowed(req, deviceId))) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     const config = await prisma.zoneConfig.create({
@@ -73,8 +101,9 @@ configRoutes.post("/", async (req, res) => {
 });
 
 // Update zone config
-configRoutes.put("/:id", async (req, res) => {
+configRoutes.put("/:id", requireAuth, async (req: Request<{ id: string }>, res) => {
   try {
+    if (!(await configAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     const {
       isEnabled,
       minVolume,
@@ -112,8 +141,9 @@ configRoutes.put("/:id", async (req, res) => {
 });
 
 // Pause/resume zone config
-configRoutes.patch("/:id/pause", async (req, res) => {
+configRoutes.patch("/:id/pause", requireAuth, async (req: Request<{ id: string }>, res) => {
   try {
+    if (!(await configAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     const { isPaused } = req.body;
     if (typeof isPaused !== "boolean") return res.status(400).json({ error: "isPaused (boolean) required" });
 
@@ -128,7 +158,7 @@ configRoutes.patch("/:id/pause", async (req, res) => {
 });
 
 // Quick setup — creates enabled config and auto-names device
-configRoutes.post("/quick-setup", async (req, res) => {
+configRoutes.post("/quick-setup", requireAuth, async (req, res) => {
   try {
     const {
       deviceId,
@@ -140,6 +170,10 @@ configRoutes.post("/quick-setup", async (req, res) => {
 
     if (!deviceId || !soundtrackAccountId || !soundtrackZoneId) {
       return res.status(400).json({ error: "deviceId, soundtrackAccountId, and soundtrackZoneId required" });
+    }
+
+    if (!canAccessAccount(req, soundtrackAccountId) || !(await deviceAllowed(req, deviceId))) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     const config = await prisma.zoneConfig.create({
@@ -176,8 +210,9 @@ configRoutes.post("/quick-setup", async (req, res) => {
 });
 
 // Delete zone config
-configRoutes.delete("/:id", async (req, res) => {
+configRoutes.delete("/:id", requireAuth, async (req: Request<{ id: string }>, res) => {
   try {
+    if (!(await configAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     await prisma.zoneConfig.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
