@@ -25,6 +25,38 @@ async function configAllowed(req: Request, configId: string): Promise<boolean> {
   return !!cfg && cfg.soundtrackAccountId === scope;
 }
 
+// --- Input sanitisation -----------------------------------------------------
+// Clamp config numerics to safe ranges so degenerate settings (inverted
+// thresholds, min>max, out-of-range volumes, bad smoothing) can never reach and
+// destabilise the volume algorithm. The UI already sends valid presets, so this
+// is invisible to normal use and only guards against bad/abusive direct calls.
+const isNum = (v: any): v is number => typeof v === "number" && Number.isFinite(v);
+const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
+const clampNum = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+function sanitizeFull(b: any) {
+  const minVolume = clampInt(isNum(b.minVolume) ? b.minVolume : 4, 0, 16);
+  let maxVolume = clampInt(isNum(b.maxVolume) ? b.maxVolume : 12, 0, 16);
+  if (maxVolume < minVolume) maxVolume = minVolume;
+  const quietThresholdDb = clampNum(isNum(b.quietThresholdDb) ? b.quietThresholdDb : -74, -100, 0);
+  let loudThresholdDb = clampNum(isNum(b.loudThresholdDb) ? b.loudThresholdDb : -45, -100, 0);
+  if (loudThresholdDb <= quietThresholdDb) loudThresholdDb = Math.min(0, quietThresholdDb + 5);
+  const smoothingFactor = clampNum(isNum(b.smoothingFactor) ? b.smoothingFactor : 0.2, 0.05, 0.95);
+  const sustainCount = clampInt(isNum(b.sustainCount) ? b.sustainCount : 3, 1, 60);
+  return { minVolume, maxVolume, quietThresholdDb, loudThresholdDb, smoothingFactor, sustainCount };
+}
+
+function sanitizePartial(b: any): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (isNum(b.minVolume)) out.minVolume = clampInt(b.minVolume, 0, 16);
+  if (isNum(b.maxVolume)) out.maxVolume = clampInt(b.maxVolume, 0, 16);
+  if (isNum(b.quietThresholdDb)) out.quietThresholdDb = clampNum(b.quietThresholdDb, -100, 0);
+  if (isNum(b.loudThresholdDb)) out.loudThresholdDb = clampNum(b.loudThresholdDb, -100, 0);
+  if (isNum(b.smoothingFactor)) out.smoothingFactor = clampNum(b.smoothingFactor, 0.05, 0.95);
+  if (isNum(b.sustainCount)) out.sustainCount = clampInt(b.sustainCount, 1, 60);
+  return out;
+}
+
 // Get configs for a device
 configRoutes.get("/device/:deviceId", requireAuth, async (req: Request<{ deviceId: string }>, res) => {
   try {
@@ -74,12 +106,7 @@ configRoutes.post("/", requireAuth, async (req, res) => {
         soundtrackZoneId,
         soundtrackZoneName,
         isEnabled: isEnabled ?? false,
-        minVolume: minVolume ?? 4,
-        maxVolume: maxVolume ?? 12,
-        quietThresholdDb: quietThresholdDb ?? -74,
-        loudThresholdDb: loudThresholdDb ?? -45,
-        smoothingFactor: smoothingFactor ?? 0.2,
-        sustainCount: sustainCount ?? 3,
+        ...sanitizeFull({ minVolume, maxVolume, quietThresholdDb, loudThresholdDb, smoothingFactor, sustainCount }),
       },
     });
 
@@ -122,12 +149,7 @@ configRoutes.put("/:id", requireAuth, async (req: Request<{ id: string }>, res) 
       where: { id: req.params.id },
       data: {
         ...(isEnabled !== undefined && { isEnabled }),
-        ...(minVolume !== undefined && { minVolume }),
-        ...(maxVolume !== undefined && { maxVolume }),
-        ...(quietThresholdDb !== undefined && { quietThresholdDb }),
-        ...(loudThresholdDb !== undefined && { loudThresholdDb }),
-        ...(smoothingFactor !== undefined && { smoothingFactor }),
-        ...(sustainCount !== undefined && { sustainCount }),
+        ...sanitizePartial({ minVolume, maxVolume, quietThresholdDb, loudThresholdDb, smoothingFactor, sustainCount }),
         ...(soundtrackAccountId !== undefined && { soundtrackAccountId }),
         ...(soundtrackAccountName !== undefined && { soundtrackAccountName }),
         ...(soundtrackZoneId !== undefined && { soundtrackZoneId }),

@@ -81,3 +81,25 @@ server.listen(config.port, () => {
   console.log(`WebSocket ready on ws://localhost:${config.port}/ws`);
   logAuthStatus();
 });
+
+// Graceful shutdown: Render sends SIGTERM on every deploy. Stop accepting new
+// connections, let in-flight work finish, disconnect Prisma, then exit — instead
+// of hard-killing sockets and DB writes mid-flight.
+let shuttingDown = false;
+function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received — shutting down gracefully...`);
+  server.close(() => {
+    prisma.$disconnect().finally(() => process.exit(0));
+  });
+  // Failsafe: don't hang the platform's shutdown window.
+  setTimeout(() => process.exit(0), 10000).unref();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+// Guard against unhandled promise rejections (Node crashes on these by default).
+// Uncaught *exceptions* are intentionally NOT swallowed — let the process crash
+// and let Render restart it clean rather than limp in a corrupted state.
+process.on("unhandledRejection", (reason) => console.error("Unhandled promise rejection:", reason));
