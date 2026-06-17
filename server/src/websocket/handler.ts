@@ -3,9 +3,8 @@ import WebSocket, { WebSocketServer } from "ws";
 import { DeviceManager } from "../services/device-manager";
 import { VolumeMapper } from "../services/volume-mapper";
 import { SoundtrackService } from "../services/soundtrack";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../db";
 
-const prisma = new PrismaClient();
 const deviceManager = new DeviceManager();
 const soundtrack = new SoundtrackService();
 const volumeMapper = new VolumeMapper(soundtrack);
@@ -26,13 +25,23 @@ interface RegisterMessage {
 
 type IncomingMessage = SoundLevelMessage | RegisterMessage;
 
+const HEARTBEAT_INTERVAL_MS = 30000;
+interface LiveSocket extends WebSocket {
+  isAlive?: boolean;
+}
+
 export function setupWebSocket(server: http.Server): void {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
   wss.on("connection", (ws: WebSocket) => {
     console.log("New WebSocket connection");
+    (ws as LiveSocket).isAlive = true;
+    ws.on("pong", () => {
+      (ws as LiveSocket).isAlive = true;
+    });
 
     ws.on("message", async (raw: Buffer) => {
+      (ws as LiveSocket).isAlive = true; // any device traffic proves liveness
       try {
         const message: IncomingMessage = JSON.parse(raw.toString());
 
@@ -62,6 +71,31 @@ export function setupWebSocket(server: http.Server): void {
       console.error("WebSocket error:", err);
     });
   });
+
+  // Heartbeat: ping every device each tick and reap any socket that did not pong
+  // (or send a message) since the last tick. Without this, a venue router reboot,
+  // ISP blip, or device crash leaves a half-open socket the server never notices —
+  // the device shows 'Online' forever and auto-volume silently stops. terminate()
+  // fires 'close', which marks the device offline in the DB.
+  const heartbeat = setInterval(() => {
+    wss.clients.forEach((client) => {
+      const ws = client as LiveSocket;
+      if (ws.isAlive === false) {
+        const deviceId = deviceManager.findDeviceIdByWs(ws);
+        console.warn(`WS heartbeat: terminating dead socket${deviceId ? ` (${deviceId})` : ""}`);
+        ws.terminate();
+        return;
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        /* socket already closing */
+      }
+    });
+  }, HEARTBEAT_INTERVAL_MS);
+
+  wss.on("close", () => clearInterval(heartbeat));
 
   console.log("WebSocket server initialized");
 }

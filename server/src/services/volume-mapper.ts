@@ -4,10 +4,20 @@ interface ZoneState {
   smoothedDb: number;
   currentVolume: number;
   lastApiCallTime: number;
+  lastIncreaseTime: number; // when we last RAISED volume (for runaway-gain guard)
   sustainCount: number;
   pendingVolume: number | null;
   pendingDirection: number | null; // 1 = up, -1 = down
 }
+
+// Runaway-gain guard: after the controller raises volume, the device's own music
+// gets louder and the in-room mic hears it, which would push volume up again — a
+// positive-feedback loop that parks a quiet venue at max volume. After any
+// increase we suppress further increases for this window (decreases stay allowed),
+// so volume can only climb gradually and can always recover downward.
+// Future refinement: also model and subtract the commanded-volume contribution
+// from the measured level instead of a fixed settle window.
+const RUNAWAY_SETTLE_MS = 6000;
 
 export class VolumeMapper {
   private soundtrack: SoundtrackService;
@@ -51,6 +61,7 @@ export class VolumeMapper {
         smoothedDb: dbFS,
         currentVolume: Math.round((config.minVolume + config.maxVolume) / 2),
         lastApiCallTime: 0,
+        lastIncreaseTime: 0,
         sustainCount: 0,
         pendingVolume: null,
         pendingDirection: null,
@@ -98,6 +109,17 @@ export class VolumeMapper {
 
     // Only apply change after 2+ sustained readings
     if (state.sustainCount >= config.sustainThreshold && state.pendingVolume !== null) {
+      const now = Date.now();
+
+      // Runaway-gain guard: don't raise volume again until the settle window after
+      // the last increase has elapsed. Decreases are always allowed so the system
+      // can still come back down. Keep the pending target so a genuine, sustained
+      // increase still applies once the window passes.
+      const wantsIncrease = state.pendingVolume > state.currentVolume;
+      if (wantsIncrease && now - state.lastIncreaseTime < RUNAWAY_SETTLE_MS) {
+        return { volume: state.currentVolume, apiCalled: false };
+      }
+
       // Clamp to max 2 volume steps per change (prevents jarring jumps)
       const maxStep = 2;
       const diff = state.pendingVolume - state.currentVolume;
@@ -105,15 +127,21 @@ export class VolumeMapper {
         state.pendingVolume = state.currentVolume + (diff > 0 ? maxStep : -maxStep);
       }
 
-      const now = Date.now();
       // Rate limit: max 1 API call per 2 seconds per zone
       if (now - state.lastApiCallTime >= 2000) {
+        // Claim the rate-limit slot BEFORE awaiting the network call so a second
+        // concurrent reading for this zone can't also pass the gate and fire a
+        // duplicate setVolume. Released back on failure so a retry can happen.
+        const previousCallTime = state.lastApiCallTime;
+        state.lastApiCallTime = now;
+        const isIncrease = state.pendingVolume > state.currentVolume;
         try {
           await this.soundtrack.setVolume(zoneId, state.pendingVolume);
           state.currentVolume = state.pendingVolume;
-          state.lastApiCallTime = now;
+          if (isIncrease) state.lastIncreaseTime = now;
           apiCalled = true;
         } catch (err) {
+          state.lastApiCallTime = previousCallTime;
           console.error(`Failed to set volume for zone ${zoneId}:`, err);
         }
         state.pendingVolume = null;

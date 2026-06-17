@@ -2,14 +2,12 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import path from "path";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "./db";
 import { config } from "./config";
 import { setupWebSocket } from "./websocket/handler";
 import { deviceRoutes } from "./routes/devices";
 import { configRoutes } from "./routes/configs";
 import { soundtrackRoutes } from "./routes/soundtrack";
-
-const prisma = new PrismaClient();
 
 const app = express();
 const server = http.createServer(app);

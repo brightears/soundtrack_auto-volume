@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../db";
 import { deviceManager } from "../websocket/handler";
 
-const prisma = new PrismaClient();
 export const deviceRoutes = Router();
 
 // List devices (optionally filtered by account)
