@@ -16,12 +16,18 @@
 // WiFi reconnect
 #define WIFI_RETRY_DELAY   5000    // ms between reconnect attempts
 #define WS_RETRY_DELAY     3000    // ms between WS reconnect attempts
+// Re-open the (non-destructive) setup portal after sustained inability to connect.
+// Fewer retries when we have no known-good network yet (first-time / bad creds) so
+// setup is re-offered promptly; many more once creds were good, so a transient
+// outage recovers via STA reconnect instead of popping the portal.
+#define WIFI_RETRIES_FRESH      3   // x WIFI_RETRY_DELAY ~15s before portal (never connected)
+#define WIFI_RETRIES_CONNECTED  60  // x WIFI_RETRY_DELAY ~5min before portal (known-good creds)
 
 // Device ID prefix
 #define DEVICE_ID_PREFIX   "esp32-"
 
 // Firmware version
-#define FW_VERSION         "2.3.0"
+#define FW_VERSION         "2.3.1"
 
 // NVS keys
 #define NVS_KEY_ACCOUNT    "account_id"

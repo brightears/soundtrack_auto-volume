@@ -37,6 +37,7 @@ static unsigned long lastDbCalc = 0;
 static unsigned long lastDisplayUpdate = 0;
 static unsigned long lastWiFiRetry = 0;
 static int consecutiveWiFiFailures = 0;
+static bool everConnected = false; // have we ever had a working WiFi connection?
 
 #define I2S_PORT I2S_NUM_0
 #define DISPLAY_UPDATE_INTERVAL 200  // ms between display redraws
@@ -116,6 +117,7 @@ void setup() {
   bool connected = changeWifiRequested ? startCaptivePortal(gfx) : provisioningInit(gfx);
   if (connected) {
     wifiConnected = true;
+    everConnected = true;
     consecutiveWiFiFailures = 0;
     Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
 
@@ -148,31 +150,38 @@ void loop() {
     if (wifiConnected) {
       Serial.println("WiFi lost!");
       wifiConnected = false;
-      consecutiveWiFiFailures++;
-    }
-
-    // After too many failures, re-enter provisioning
-    if (consecutiveWiFiFailures >= MAX_WIFI_FAILURES) {
-      Serial.println("Too many WiFi failures, re-entering setup...");
-      consecutiveWiFiFailures = 0;
-      bool connected = startCaptivePortal(gfx);
-      if (connected) {
-        wifiConnected = true;
-        wsHost = DEFAULT_WS_HOST;
-        accountId = getAccountId();
-        initWebSocket();
-        if (displayReady) {
-          gfx->fillScreen(COLOR_BG);
-          drawStaticUI();
-        }
-      }
-      return;
+      wsConnected = false;
     }
 
     if (now - lastWiFiRetry >= WIFI_RETRY_DELAY) {
       lastWiFiRetry = now;
-      Serial.printf("WiFi retry... (failures: %d/%d)\n", consecutiveWiFiFailures, MAX_WIFI_FAILURES);
+      consecutiveWiFiFailures++;
+      // Be patient when creds were known-good (ride out transient outages on STA);
+      // re-offer setup promptly when we have no working network yet.
+      int threshold = everConnected ? WIFI_RETRIES_CONNECTED : WIFI_RETRIES_FRESH;
+      Serial.printf("WiFi retry %d/%d (status=%s)\n", consecutiveWiFiFailures, threshold, wifiStatusStr(WiFi.status()));
       WiFi.reconnect();
+
+      // Sustained failure → re-open the NON-DESTRUCTIVE setup portal so the device
+      // is always recoverable (bad/changed creds, or a missed first-time setup
+      // window) without ever wiping known-good credentials.
+      if (consecutiveWiFiFailures >= threshold) {
+        Serial.println("Sustained WiFi failure — re-opening setup portal...");
+        consecutiveWiFiFailures = 0;
+        bool connected = startCaptivePortal(gfx);
+        if (connected) {
+          wifiConnected = true;
+          everConnected = true;
+          wsHost = DEFAULT_WS_HOST;
+          accountId = getAccountId();
+          initWebSocket();
+          if (displayReady) {
+            gfx->fillScreen(COLOR_BG);
+            drawStaticUI();
+          }
+        }
+        return;
+      }
     }
 
     // Still update display while waiting for WiFi
@@ -185,6 +194,7 @@ void loop() {
 
   if (!wifiConnected) {
     wifiConnected = true;
+    everConnected = true;
     consecutiveWiFiFailures = 0;
     Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
     Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
