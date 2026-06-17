@@ -147,11 +147,12 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
 
   Serial.printf("Starting captive portal: %s\n", apName);
 
-  // Clear any stored WiFi credentials so AP starts cleanly
-  WiFi.disconnect(true, true);
-  delay(200);
+  // IMPORTANT: do NOT erase stored WiFi credentials here. Wiping creds before we
+  // have working new ones is what previously stranded the device when the portal
+  // timed out. startConfigPortal() opens the AP WITHOUT clearing NVS and only
+  // overwrites the saved network if the user submits new creds that connect.
 
-  // Pre-scan networks for iOS captive portal detection
+  // Pre-scan networks for iOS/Android captive portal detection
   Serial.println("Pre-scanning WiFi networks...");
   WiFi.mode(WIFI_STA);
   WiFi.scanNetworks(true); // async scan
@@ -164,20 +165,37 @@ bool startCaptivePortal(Arduino_GFX *gfx) {
   }
 
   WiFiManager wm;
-  wm.resetSettings(); // ensure no stored creds interfere with AP
-
   wm.setConfigPortalTimeout(PORTAL_TIMEOUT);
   wm.setConnectTimeout(20);
 
-  // Start portal (WiFi only — account is assigned via admin backend)
-  bool connected = wm.autoConnect(apName);
+  // Open the setup portal. Returns true only if the user entered credentials
+  // that successfully connected (WiFiManager persists them on success).
+  bool connected = wm.startConfigPortal(apName);
 
   if (connected) {
     Serial.println("WiFi connected via portal!");
     return true;
   }
 
-  Serial.println("Portal timed out or failed");
+  // Portal timed out or was cancelled. Any previously stored credentials are
+  // still intact — fall back to them so a transient setup attempt never leaves
+  // the device with no network.
+  Serial.println("Portal timed out; falling back to stored credentials...");
+  if (gfx) {
+    drawConnectingScreen(gfx, WiFi.SSID().c_str(), 1, 0);
+  }
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(); // uses stored creds, if any
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+    delay(500);
+    Serial.print(".");
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("\nReconnected to stored WiFi: %s\n", WiFi.SSID().c_str());
+    return true;
+  }
+  Serial.println("\nNo working credentials after portal.");
   return false;
 }
 
@@ -223,7 +241,10 @@ bool provisioningInit(Arduino_GFX *gfx) {
   return startCaptivePortal(gfx);
 }
 
-bool checkTouchReset(Arduino_GFX *gfx) {
+// Returns true if the user did a short tap at boot to request a WiFi change
+// (re-open the setup portal while PRESERVING the assigned Account ID).
+// A long 5s hold performs a full factory reset (and restarts, never returning).
+bool checkTouchAction(Arduino_GFX *gfx) {
   // Configure touch interrupt pin
   pinMode(PIN_TOUCH_INT, INPUT_PULLUP);
 
@@ -237,12 +258,12 @@ bool checkTouchReset(Arduino_GFX *gfx) {
   Wire.endTransmission();
   delay(200);
 
-  // Show reset hint on display
+  // Show touch hint on display
   if (gfx) {
     gfx->setTextSize(1);
     gfx->setTextColor(COLOR_DIM);
     gfx->setCursor(12, LCD_HEIGHT - 16);
-    gfx->print("Touch screen now to factory reset...");
+    gfx->print("Tap = change WiFi  |  Hold = factory reset");
   }
 
   // Poll for touch a few times (controller may need time)
@@ -272,14 +293,17 @@ bool checkTouchReset(Arduino_GFX *gfx) {
   }
 
   if (touchCount > 0) {
-      Serial.println("Touch detected at boot - hold for 5s to factory reset...");
+      Serial.println("Touch detected at boot: hold 5s = factory reset, release = change WiFi");
 
       if (gfx) {
         gfx->fillScreen(COLOR_BG);
         gfx->setTextSize(2);
         gfx->setTextColor(COLOR_YELLOW);
-        gfx->setCursor(12, 120);
-        gfx->print("Hold to reset...");
+        gfx->setCursor(12, 110);
+        gfx->print("Hold 5s: reset");
+        gfx->setTextColor(COLOR_CYAN);
+        gfx->setCursor(12, 145);
+        gfx->print("Release: change WiFi");
       }
 
       unsigned long start = millis();
@@ -314,7 +338,7 @@ bool checkTouchReset(Arduino_GFX *gfx) {
           gfx->setCursor(12, 210);
           char buf[32];
           int remaining = (TOUCH_RESET_HOLD_MS - (millis() - start)) / 1000;
-          snprintf(buf, sizeof(buf), "Release in %ds to cancel", remaining);
+          snprintf(buf, sizeof(buf), "Release now to change WiFi (%ds to reset)", remaining);
           gfx->print(buf);
         }
       }
@@ -335,10 +359,11 @@ bool checkTouchReset(Arduino_GFX *gfx) {
         resetProvisioning();
         delay(1500);
         ESP.restart();
-        return true; // won't reach here
+        return false; // won't reach here (device restarts)
       }
 
-      Serial.println("Touch released before 5s - continuing normal boot");
+      Serial.println("Touch released before 5s - entering WiFi change mode");
+      return true; // request the WiFi setup portal (Account ID preserved)
   }
 
   return false;

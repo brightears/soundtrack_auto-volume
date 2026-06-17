@@ -105,14 +105,15 @@ void setup() {
   deviceId = String(DEVICE_ID_PREFIX) + macStr;
   Serial.printf("Device ID: %s\n", deviceId.c_str());
 
-  // Check for factory reset (touch held at boot)
-  checkTouchReset(gfx);
+  // Boot touch: short tap = change WiFi (Account ID preserved), long 5s hold = factory reset.
+  bool changeWifiRequested = checkTouchAction(gfx);
 
   initES8311();
   initI2S();
 
-  // WiFi provisioning (replaces hardcoded initWiFi)
-  bool connected = provisioningInit(gfx);
+  // WiFi provisioning. A boot tap forces the setup portal while keeping the
+  // assigned account; otherwise connect with stored creds (portal only if none).
+  bool connected = changeWifiRequested ? startCaptivePortal(gfx) : provisioningInit(gfx);
   if (connected) {
     wifiConnected = true;
     consecutiveWiFiFailures = 0;

@@ -24,5 +24,7 @@ String getAccountId();
 // Erase stored WiFi + account ID (factory reset)
 void resetProvisioning();
 
-// Check if touch is held for factory reset (call during setup)
-bool checkTouchReset(Arduino_GFX *gfx);
+// Boot touch action (call during setup): short tap requests a WiFi change
+// (preserves the Account ID), a long 5s hold performs a factory reset and
+// restarts. Returns true if the user requested a WiFi change.
+bool checkTouchAction(Arduino_GFX *gfx);
