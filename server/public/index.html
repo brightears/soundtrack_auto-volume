@@ -405,7 +405,7 @@
                             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-1.102-4.242a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                             Copy Link
                           </button>
-                          <button @click="generateAccessCode(device)" class="text-xs text-gray-500 hover:text-brand-orange transition" title="Create a customer access code">
+                          <button @click="showAccessCode(device)" class="text-xs text-gray-500 hover:text-brand-orange transition" title="View / manage the customer access code">
                             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
                             Access Code
                           </button>
@@ -884,13 +884,32 @@
       <div class="glass rounded-2xl p-6 w-full max-w-sm">
         <h3 class="text-base font-semibold text-white mb-1">Customer Access Code</h3>
         <p class="text-xs text-gray-400 mb-4" x-text="'For ' + (accessCodeModal.name || accessCodeModal.account)"></p>
-        <div class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-center text-2xl font-mono tracking-widest text-brand-orange mb-2" x-text="accessCodeModal.code"></div>
-        <p class="text-xs text-gray-500 mb-4">Give the customer this code and the dashboard link. They enter it once to sign in. The code is shown only now — regenerating creates a new one.</p>
-        <div class="flex gap-2">
-          <button @click="navigator.clipboard.writeText(accessCodeModal.code); showToast('Code copied', 'success')" class="flex-1 bg-brand-orange hover:bg-brand-orange-dark text-white rounded-lg py-2 text-sm font-medium transition">Copy Code</button>
-          <button @click="navigator.clipboard.writeText(window.location.origin); showToast('Link copied', 'success')" class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 rounded-lg py-2 text-sm transition">Copy Link</button>
-          <button @click="accessCodeModal.show = false" class="px-3 text-gray-400 hover:text-gray-200 text-sm">Close</button>
-        </div>
+
+        <!-- A code to show (just created or just regenerated) -->
+        <template x-if="accessCodeModal.code">
+          <div>
+            <div class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-center text-2xl font-mono tracking-widest text-brand-orange mb-2" x-text="accessCodeModal.code"></div>
+            <p class="text-xs text-gray-500 mb-4">Give the customer this code + the dashboard link. <span class="text-brand-orange font-medium">Write it down now — for security it's shown only once.</span></p>
+            <div class="flex gap-2">
+              <button @click="navigator.clipboard.writeText(accessCodeModal.code); showToast('Code copied', 'success')" class="flex-1 bg-brand-orange hover:bg-brand-orange-dark text-white rounded-lg py-2 text-sm font-medium transition">Copy Code</button>
+              <button @click="navigator.clipboard.writeText(window.location.origin); showToast('Link copied', 'success')" class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 rounded-lg py-2 text-sm transition">Copy Link</button>
+              <button @click="accessCodeModal.show = false" class="px-3 text-gray-400 hover:text-gray-200 text-sm">Close</button>
+            </div>
+          </div>
+        </template>
+
+        <!-- A code already exists (not shown again for security) -->
+        <template x-if="!accessCodeModal.code && accessCodeModal.exists">
+          <div>
+            <div class="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-center text-sm text-gray-300 mb-2">✓ A login code is already active for this customer.</div>
+            <p class="text-xs text-gray-500 mb-4">For security the code is shown only when first created. If the customer doesn't have it, regenerate a new one — <span class="text-red-400">this stops the old code from working.</span></p>
+            <div class="flex gap-2">
+              <button @click="regenerateAccessCode()" class="flex-1 bg-brand-orange hover:bg-brand-orange-dark text-white rounded-lg py-2 text-sm font-medium transition">Regenerate Code</button>
+              <button @click="navigator.clipboard.writeText(window.location.origin); showToast('Link copied', 'success')" class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 rounded-lg py-2 text-sm transition">Copy Link</button>
+              <button @click="accessCodeModal.show = false" class="px-3 text-gray-400 hover:text-gray-200 text-sm">Close</button>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -922,7 +941,7 @@
         loginCode: '',
         loginError: '',
         loggingIn: false,
-        accessCodeModal: { show: false, account: '', name: '', code: '' },
+        accessCodeModal: { show: false, account: '', name: '', code: '', exists: false },
 
         // Shared state
         tab: 'devices',
@@ -997,14 +1016,24 @@
           window.location.href = window.location.origin + window.location.pathname;
         },
 
-        async generateAccessCode(device) {
+        async showAccessCode(device) {
           if (!device.soundtrackAccountId) { this.showToast('Assign an account first', 'error'); return; }
           try {
+            // Idempotent: returns the code only on FIRST creation; otherwise { exists: true }.
             const res = await fetch(`${API}/customers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ soundtrackAccountId: device.soundtrackAccountId, name: this.deviceDisplayName(device) }) });
             if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed'); }
             const data = await res.json();
-            this.accessCodeModal = { show: true, account: device.soundtrackAccountId, name: device.name || '', code: data.code };
-          } catch (e) { this.showToast(e.message || 'Failed to create code', 'error'); }
+            this.accessCodeModal = { show: true, account: device.soundtrackAccountId, name: device.name || '', code: data.code || '', exists: !!data.exists };
+          } catch (e) { this.showToast(e.message || 'Failed', 'error'); }
+        },
+        async regenerateAccessCode() {
+          if (!confirm('Regenerate the access code? The current code will stop working immediately and you must give the customer the new one.')) return;
+          try {
+            const res = await fetch(`${API}/customers/${encodeURIComponent(this.accessCodeModal.account)}/regenerate`, { method: 'POST' });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            this.accessCodeModal = { ...this.accessCodeModal, code: data.code, exists: false };
+          } catch (e) { this.showToast('Failed to regenerate', 'error'); }
         },
 
         switchTab(newTab) {

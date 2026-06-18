@@ -31,19 +31,27 @@ customerRoutes.get("/", async (_req, res) => {
   );
 });
 
-// Create or update a customer's access code. Returns the plaintext code ONCE.
+// Get-or-create a customer's access code. IDEMPOTENT: if a code already exists
+// for this account it is NOT regenerated (that would invalidate the code already
+// given to the customer) — returns { exists: true } instead. A brand-new code is
+// returned ONCE on first creation. Use POST /:accountId/regenerate to intentionally
+// issue a new code.
 customerRoutes.post("/", async (req, res) => {
   const { soundtrackAccountId, name } = req.body ?? {};
   if (!soundtrackAccountId || typeof soundtrackAccountId !== "string") {
     return res.status(400).json({ error: "soundtrackAccountId (string) required" });
   }
-  const code = (req.body?.code && String(req.body.code)) || generateCode();
-  const accessCodeHash = hashSecret(code);
   try {
-    const customer = await prisma.customer.upsert({
-      where: { soundtrackAccountId },
-      update: { accessCodeHash, ...(name !== undefined && { name }) },
-      create: { soundtrackAccountId, name: name ?? null, accessCodeHash },
+    const existing = await prisma.customer.findUnique({ where: { soundtrackAccountId } });
+    if (existing) {
+      if (name !== undefined && name !== existing.name) {
+        await prisma.customer.update({ where: { soundtrackAccountId }, data: { name } });
+      }
+      return res.json({ id: existing.id, soundtrackAccountId, name: name ?? existing.name, exists: true });
+    }
+    const code = (req.body?.code && String(req.body.code)) || generateCode();
+    const customer = await prisma.customer.create({
+      data: { soundtrackAccountId, name: name ?? null, accessCodeHash: hashSecret(code) },
     });
     res.json({ id: customer.id, soundtrackAccountId, name: customer.name, code });
   } catch (err) {
