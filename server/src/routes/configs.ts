@@ -1,6 +1,6 @@
 import { Router, Request } from "express";
 import { prisma } from "../db";
-import { requireAuth, scopedAccountId, canAccessAccount } from "../auth";
+import { requireAuth, requireAdmin, scopedAccountId, canAccessAccount } from "../auth";
 
 export const configRoutes = Router();
 
@@ -96,8 +96,8 @@ configRoutes.get("/device/:deviceId", requireAuth, async (req: Request<{ deviceI
   }
 });
 
-// Create zone config
-configRoutes.post("/", requireAuth, async (req, res) => {
+// Create zone config — ADMIN ONLY (customers tune existing zones, they don't add them)
+configRoutes.post("/", requireAdmin, async (req, res) => {
   try {
     const {
       deviceId,
@@ -210,8 +210,8 @@ configRoutes.patch("/:id/pause", requireAuth, async (req: Request<{ id: string }
   }
 });
 
-// Quick setup — creates enabled config and auto-names device
-configRoutes.post("/quick-setup", requireAuth, async (req, res) => {
+// Quick setup — creates enabled config and auto-names device — ADMIN ONLY
+configRoutes.post("/quick-setup", requireAdmin, async (req, res) => {
   try {
     const {
       deviceId,
@@ -265,8 +265,8 @@ configRoutes.post("/quick-setup", requireAuth, async (req, res) => {
   }
 });
 
-// Delete zone config
-configRoutes.delete("/:id", requireAuth, async (req: Request<{ id: string }>, res) => {
+// Delete zone config — ADMIN ONLY
+configRoutes.delete("/:id", requireAdmin, async (req: Request<{ id: string }>, res) => {
   try {
     if (!(await configAllowed(req, req.params.id))) return res.status(403).json({ error: "Forbidden" });
     await prisma.zoneConfig.delete({ where: { id: req.params.id } });
