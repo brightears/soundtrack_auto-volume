@@ -465,6 +465,8 @@ void initES8311() {
 
   es8311Write(0x00, 0x1F);
   delay(20);
+  es8311Write(0x00, 0x00);  // de-assert all sub-block resets before CSM_ON (ADC was left in reset)
+  delay(20);
   es8311Write(0x00, 0x80);
 
   es8311Write(0x01, 0x3F);
@@ -488,7 +490,7 @@ void initES8311() {
   // ADC (mic) registers - CRITICAL for microphone to work
   es8311Write(0x15, 0x40);  // ADC ramp rate
   es8311Write(0x16, 0x04);  // Mic PGA gain: 4 = 24dB (range: 0=0dB to 7=42dB)
-  es8311Write(0x17, 0xBF);  // ADC enable + config (WITHOUT this, ADC stays off!)
+  es8311Write(0x17, 0xC8);  // ADC digital volume +4.5dB (matches Waveshare reference)
   es8311Write(0x1C, 0x6A);  // ADC HPF config
 
   // DAC registers
@@ -646,20 +648,33 @@ void calculateDb() {
   esp_err_t err = i2s_read(I2S_PORT, buf, I2S_READ_BUF_SIZE, &bytesRead, 10);
   if (err != ESP_OK || bytesRead == 0) return;
 
-  int numFrames = bytesRead / 4;
+  int numFrames = bytesRead / 4;  // RIGHT_LEFT 16-bit => 4 bytes/frame
   if (numFrames == 0) return;
 
+  // Mono mic: the ES8311 mirrors its ADC to both I2S slots, so reading the left
+  // slot is sufficient. (The ADC only produces signal once reg 0x00 de-asserts
+  // the ADC reset — see initES8311.)
   double sumSquares = 0;
   for (int i = 0; i < numFrames; i++) {
     int16_t sample = buf[i * 2];
     sumSquares += (double)sample * sample;
   }
+  double meanSquare = sumSquares / numFrames;
 
-  double rms = sqrt(sumSquares / numFrames);
+  // Smooth in the ENERGY domain (short Leq) so the reported level reflects
+  // sustained loudness rather than individual loud/quiet samples within music.
+  static double avgMeanSquare = 0;
+  if (avgMeanSquare <= 0) avgMeanSquare = meanSquare;  // seed on first reading
+  avgMeanSquare = AUDIO_ENERGY_ALPHA * meanSquare + (1.0 - AUDIO_ENERGY_ALPHA) * avgMeanSquare;
+
+  double rms = sqrt(avgMeanSquare);
   if (rms < 1.0) rms = 1.0;
+  currentDbFS = 20.0f * log10f((float)(rms / 32767.0));
 
-  float dbFS = 20.0f * log10f((float)(rms / 32767.0));
-  currentDbFS = dbFS;
+  static uint8_t dbgCount = 0;
+  if (++dbgCount % 20 == 0) {  // ~every 2s, light field-diagnostic logging
+    Serial.printf("[audio] %.1f dBFS\n", currentDbFS);
+  }
 }
 
 // --- Send sound level via WebSocket ---

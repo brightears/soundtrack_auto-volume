@@ -203,41 +203,35 @@ bool provisioningInit(Arduino_GFX *gfx) {
   WiFi.mode(WIFI_STA);
   delay(100);
 
-  // Check if we have stored WiFi credentials
-  // WiFiManager stores creds automatically; try connecting first
-  String ssid = WiFi.SSID();
-
-  if (ssid.length() > 0) {
-    // We have stored credentials, try to connect
-    Serial.printf("Found stored WiFi: '%s', connecting...\n", ssid.c_str());
-
-    if (gfx) {
-      drawConnectingScreen(gfx, ssid.c_str(), 1, MAX_WIFI_FAILURES);
-    }
-
-    WiFi.begin(); // Uses stored credentials
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-      delay(500);
-      Serial.print(".");
-      attempts++;
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-      Serial.printf("\nWiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
-      return true;
-    }
-
-    Serial.println("\nStored WiFi failed, starting captive portal...");
-    if (gfx) {
-      drawWiFiFailedScreen(gfx);
-      delay(2000);
-    }
-  } else {
-    Serial.println("No stored WiFi credentials, starting captive portal...");
+  // Always attempt to reconnect with persisted credentials first. WiFi.begin()
+  // with no args uses the SSID/password saved in NVS by the last successful
+  // connection — this is what lets the device come back automatically after a
+  // reboot or power-cycle. (Previously we gated on WiFi.SSID(), but that returns
+  // empty on a cold boot even when valid creds are stored, so the device opened
+  // the portal on EVERY reboot instead of reconnecting.)
+  Serial.println("Trying stored WiFi credentials...");
+  WiFi.begin();
+  if (gfx) {
+    drawConnectingScreen(gfx, WiFi.SSID().c_str(), 1, 0);
   }
 
-  // No credentials or failed to connect — start portal
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {  // up to ~15s
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("\nWiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
+    return true;
+  }
+
+  Serial.println("\nNo working stored credentials — starting captive portal...");
+  if (gfx) {
+    drawWiFiFailedScreen(gfx);
+    delay(1500);
+  }
   return startCaptivePortal(gfx);
 }
 

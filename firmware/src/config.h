@@ -6,6 +6,10 @@
 #define I2S_READ_BUF_SIZE  1024    // Bytes per I2S read
 #define DB_CALC_INTERVAL   100     // ms between dB calculations
 #define DB_SEND_INTERVAL   500     // ms between WebSocket sends
+// Energy-domain smoothing (short Leq) so the level tracks sustained loudness
+// instead of jumping on each transient/quiet sample. ~tau = DB_CALC_INTERVAL/alpha
+// = 100ms/0.2 = ~0.5s.
+#define AUDIO_ENERGY_ALPHA 0.2
 
 // WebSocket server (default, can be overridden via captive portal)
 #define DEFAULT_WS_HOST    "soundtrack-auto-volume.onrender.com"
@@ -27,7 +31,7 @@
 #define DEVICE_ID_PREFIX   "esp32-"
 
 // Firmware version
-#define FW_VERSION         "2.3.1"
+#define FW_VERSION         "2.5.0"
 
 // NVS keys
 #define NVS_KEY_ACCOUNT    "account_id"
