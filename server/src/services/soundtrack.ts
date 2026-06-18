@@ -87,11 +87,25 @@ export class SoundtrackService {
     return allAccounts;
   }
 
+  // Forgiving search key: lowercase, strip accents/diacritics, drop apostrophe
+  // variants and punctuation, so "DARK" matches "D'ARK" (curly OR straight quote)
+  // and accented Thai/intl venue names match without exact punctuation.
+  private static normalize(s: string): string {
+    return s
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")           // combining accents
+      .replace(/[‘’ʼ'`´]/g, "") // apostrophe variants
+      .replace(/[^a-z0-9]+/g, " ")               // other punctuation -> space
+      .trim();
+  }
+
   async searchAccounts(query: string): Promise<AccountNode[]> {
     const allAccounts = await this.fetchAllAccounts();
-    const q = query.toLowerCase().trim();
+    const q = SoundtrackService.normalize(query);
+    if (!q) return [];
     return allAccounts
-      .filter((a) => a.businessName.toLowerCase().includes(q))
+      .filter((a) => SoundtrackService.normalize(a.businessName).includes(q))
       .slice(0, 20);
   }
 
