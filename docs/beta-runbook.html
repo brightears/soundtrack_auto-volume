@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 12mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 10.2px; line-height: 1.35; margin: 0; }
+  h1 { font-size: 19px; margin: 0; color: #0f0f0f; }
+  .sub { color: #EFA634; font-weight: 700; font-size: 12px; margin: 1px 0 0; }
+  .accent { height: 3px; background: linear-gradient(90deg,#EFA634,rgba(239,166,52,0)); margin: 6px 0 10px; }
+  h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: #b9791f; margin: 11px 0 4px; border-bottom: 1px solid #eaddc6; padding-bottom: 2px; }
+  .grid { display: flex; gap: 12px; }
+  .col { flex: 1; }
+  .card { background: #faf6ee; border: 1px solid #ecdcc0; border-radius: 7px; padding: 8px 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 2px 4px; vertical-align: top; }
+  td.k { color: #777; white-space: nowrap; width: 130px; }
+  code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; background: #f0ece3; padding: 1px 5px; border-radius: 4px; font-weight: 600; }
+  ol { margin: 4px 0 0; padding-left: 18px; }
+  ol li { margin-bottom: 3px; }
+  ul { margin: 3px 0 0; padding-left: 15px; }
+  ul li { margin-bottom: 2px; }
+  .warn { color: #b00020; font-weight: 700; }
+  .ok { color: #1a7d3c; font-weight: 700; }
+  .tag { display:inline-block; background:#fde8c8; color:#9a5d00; border-radius:4px; padding:0 5px; font-weight:700; }
+  .foot { margin-top: 12px; padding-top: 6px; border-top: 1px solid #eee; color: #999; font-size: 9px; display:flex; justify-content:space-between; }
+  b { color:#0f0f0f; }
+</style>
+</head>
+<body>
+  <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+    <div><h1>Auto‑Volume — Venue Setup Runbook</h1><p class="sub">D'ARK EmQuartier · beta</p></div>
+    <div style="text-align:right; color:#999; font-size:9px;">Firmware v2.5.0<br>BMAsia</div>
+  </div>
+  <div class="accent"></div>
+
+  <div class="card">
+    <table>
+      <tr><td class="k">Dashboard</td><td><span class="mono">soundtrack-auto-volume.onrender.com</span></td>
+          <td class="k">2.4 GHz WiFi only</td><td>(ESP32 can't see 5 GHz)</td></tr>
+      <tr><td class="k">Admin login (BMAsia)</td><td><code>av-NJ3B-UG9Q-2CA7</code> <span style="color:#b00020">— internal, don't share</span></td>
+          <td class="k">Soundtrack account</td><td>D'ARK EmQuartier (Premium)</td></tr>
+      <tr><td class="k">Customer login (give them)</td><td><code>HWYW-7XV4</code> + the dashboard link</td>
+          <td class="k">Device</td><td>D'ARK EmQuartier · esp32‑ccba9711a79c</td></tr>
+    </table>
+  </div>
+
+  <h2>Setup at the venue — in order</h2>
+  <ol>
+    <li><b>Place &amp; power the device</b> where it hears the room (ideally near a speaker). Plug into USB power.</li>
+    <li><b>Connect to D'ARK's WiFi</b> (2.4 GHz): tap the screen at boot for <b>"Change WiFi"</b> (or it shows a <span class="mono">AutoVolume‑XXXX</span> network). On your phone, join <span class="mono">AutoVolume‑XXXX</span> → a setup page opens (or visit <span class="mono">http://192.168.4.1</span>) → pick D'ARK's 2.4 GHz network → enter password → <b>Save</b>. The device reconnects on its own after this.</li>
+    <li><b>Confirm online:</b> admin dashboard → <b>Devices</b> → "D'ARK EmQuartier" shows a <span class="ok">green dot · Online</span> with a live dB number moving.</li>
+    <li><b>Check Soundtrack is playing</b> on the D'ARK zone (a player must be online and playing).</li>
+    <li><b>Go live:</b> <b>Configure</b> → the D'ARK EmQuartier zone → flip the <span class="tag">toggle ON</span> (turns orange).</li>
+    <li><b>Verify:</b> make noise / wait for a busy moment → the volume number climbs; quiet → it eases back down.</li>
+  </ol>
+  <p style="margin:5px 0 0"><span class="warn">⚠ Do NOT enable the zone before the device is physically at D'ARK</span> — it would change their real music from wherever the device is.</p>
+
+  <div class="grid" style="margin-top:4px">
+    <div class="col">
+      <h2>Tuning cheat‑sheet (adjust by ear)</h2>
+      <ul>
+        <li><b>Sensitivity</b> — how loud the room must get before volume rises. Start <b>Medium</b>. Maxes out too early in the evening? → <b>Low</b>. Barely reacts? → <b>High</b>.</li>
+        <li><b>Reactivity</b> — how fast it changes. Use <b>Slow</b> (smooth) or <b>Slowest</b>. <span class="warn">Avoid Fast/Fastest</span> in a venue — twitchy.</li>
+        <li><b>Volume Range</b> — <b>min</b> = sound when empty/quiet, <b>max</b> = sound when packed. Start <b>5–12</b>. Not loud enough over a crowd? raise max. Too loud when empty? lower min.</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h2>If something looks off</h2>
+      <ul>
+        <li><b>Device "Offline" (red):</b> check power + on D'ARK's 2.4 GHz WiFi. It auto‑reconnects after blips; if stuck, tap screen → Change WiFi.</li>
+        <li><b><span class="warn">⚠ Player offline</span> badge:</b> D'ARK's Soundtrack player isn't playing → start playback in Soundtrack. Volume can't change while it's offline.</li>
+        <li><b>Online + dB moves but volume doesn't:</b> make sure the zone <b>toggle is ON</b> and the player is online.</li>
+        <li><b>Volume jumpy:</b> set Reactivity to <b>Slow / Slowest</b>.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Hand to the customer</h2>
+  <p style="margin-top:2px">Link: <span class="mono">soundtrack-auto-volume.onrender.com</span> &nbsp;·&nbsp; Access code: <code>HWYW-7XV4</code>. They see <b>only their zone</b> — can tune Sensitivity / Reactivity / Volume Range and pause anytime. They cannot see any other account.</p>
+
+  <div class="foot"><span>Auto‑Volume beta runbook · keep handy during setup</span><span>Powered by <b style="color:#EFA634">BMAsia</b></span></div>
+</body>
+</html>
