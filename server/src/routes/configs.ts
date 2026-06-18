@@ -25,6 +25,31 @@ async function configAllowed(req: Request, configId: string): Promise<boolean> {
   return !!cfg && cfg.soundtrackAccountId === scope;
 }
 
+// A device controls only ONE Soundtrack account's zones. Returns an error if the
+// requested zone's account conflicts with the device's assigned account; if the
+// device has no account yet, the first zone assigns it. Prevents cross-wiring one
+// customer's zone onto another customer's device.
+async function assertZoneAccountMatchesDevice(
+  deviceUuid: string,
+  accountId: string
+): Promise<{ status: number; error: string } | null> {
+  const dev = await prisma.device.findUnique({
+    where: { id: deviceUuid },
+    select: { soundtrackAccountId: true },
+  });
+  if (!dev) return { status: 404, error: "Device not found" };
+  if (dev.soundtrackAccountId && dev.soundtrackAccountId !== accountId) {
+    return {
+      status: 400,
+      error: "This device is assigned to a different customer account. A device can only control zones from its own account.",
+    };
+  }
+  if (!dev.soundtrackAccountId) {
+    await prisma.device.update({ where: { id: deviceUuid }, data: { soundtrackAccountId: accountId } });
+  }
+  return null;
+}
+
 // --- Input sanitisation -----------------------------------------------------
 // Clamp config numerics to safe ranges so degenerate settings (inverted
 // thresholds, min>max, out-of-range volumes, bad smoothing) can never reach and
@@ -97,6 +122,12 @@ configRoutes.post("/", requireAuth, async (req, res) => {
     if (!canAccessAccount(req, soundtrackAccountId) || !(await deviceAllowed(req, deviceId))) {
       return res.status(403).json({ error: "Forbidden" });
     }
+
+    // A device controls only ONE account's zones (its own). Refuse to attach a
+    // zone from a different account — that would leak it to the device's owner
+    // and let their mic drive another venue's music. First zone sets the account.
+    const matchErr = await assertZoneAccountMatchesDevice(deviceId, soundtrackAccountId);
+    if (matchErr) return res.status(matchErr.status).json({ error: matchErr.error });
 
     const config = await prisma.zoneConfig.create({
       data: {
@@ -197,6 +228,9 @@ configRoutes.post("/quick-setup", requireAuth, async (req, res) => {
     if (!canAccessAccount(req, soundtrackAccountId) || !(await deviceAllowed(req, deviceId))) {
       return res.status(403).json({ error: "Forbidden" });
     }
+
+    const matchErr = await assertZoneAccountMatchesDevice(deviceId, soundtrackAccountId);
+    if (matchErr) return res.status(matchErr.status).json({ error: matchErr.error });
 
     const config = await prisma.zoneConfig.create({
       data: {
