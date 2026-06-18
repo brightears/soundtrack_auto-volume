@@ -914,6 +914,9 @@
         saving: false,
         monitoring: false,
         monitorInterval: null,
+        interacting: {},
+        _interactTimers: {},
+        pollErrorCount: 0,
         toast: { show: false, message: '', type: 'success' },
         editingConfigId: null,
         editConfig: { sensitivity: 3, reactivity: 2, minVolume: 4, maxVolume: 12 },
@@ -1086,6 +1089,7 @@
 
         // Quick inline update helpers (customer mode)
         async quickUpdateReactivity(cfg, level) {
+          this.markInteracting(cfg.id);
           const params = this.reactivityToParams(parseInt(level));
           try {
             await fetch(`${API}/configs/${cfg.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) });
@@ -1095,6 +1099,7 @@
         },
 
         async quickUpdateField(cfg, field, value) {
+          this.markInteracting(cfg.id);
           try {
             await fetch(`${API}/configs/${cfg.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: value }) });
             cfg[field] = value;
@@ -1149,6 +1154,7 @@
         },
 
         async quickUpdateSensitivity(cfg, level) {
+          this.markInteracting(cfg.id);
           const sensParams = this.sensitivityToParams(parseInt(level));
           try {
             await fetch(`${API}/configs/${cfg.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sensParams) });
@@ -1162,15 +1168,67 @@
           try {
             const url = this.accountId ? `${API}/devices?account=${encodeURIComponent(this.accountId)}` : `${API}/devices`;
             const res = await fetch(url);
-            this.devices = await res.json();
-          } catch (e) { this.showToast('Failed to load devices', 'error'); }
+            const incoming = await res.json();
+            this.devices = this.mergeDevices(this.devices, incoming);
+            this.pollErrorCount = 0;
+          } catch (e) {
+            // Debounce: only surface after a few consecutive failures, not every 2s.
+            this.pollErrorCount++;
+            if (this.pollErrorCount === 3) this.showToast('Connection issue — retrying…', 'error');
+          }
+        },
+
+        // Merge poll results IN PLACE (by id) so Alpine reuses existing DOM nodes —
+        // keeps open menus open and sliders steady instead of rebuilding the whole
+        // list every 2s. Fields the user is actively editing aren't overwritten.
+        mergeDevices(existing, incoming) {
+          if (!Array.isArray(incoming)) return existing;
+          const byId = new Map((existing || []).map(d => [d.id, d]));
+          return incoming.map(nd => {
+            const ex = byId.get(nd.id);
+            if (!ex) return nd;
+            ex.isOnline = nd.isOnline; ex.lastSeen = nd.lastSeen; ex.lastDbLevel = nd.lastDbLevel;
+            ex.name = nd.name; ex.firmware = nd.firmware; ex.isPaused = nd.isPaused;
+            ex.soundtrackAccountId = nd.soundtrackAccountId;
+            ex.configs = this.mergeConfigs(ex.configs || [], nd.configs || []);
+            return ex;
+          });
+        },
+        mergeConfigs(existing, incoming) {
+          if (!Array.isArray(incoming)) return existing;
+          const byId = new Map((existing || []).map(c => [c.id, c]));
+          return incoming.map(nc => {
+            const ec = byId.get(nc.id);
+            if (!ec) return nc;
+            // live, non-editable fields always refresh
+            ec.currentVolume = nc.currentVolume; ec.playerOnline = nc.playerOnline;
+            ec.isEnabled = nc.isEnabled; ec.isPaused = nc.isPaused;
+            ec.soundtrackZoneName = nc.soundtrackZoneName; ec.soundtrackAccountName = nc.soundtrackAccountName;
+            // editable fields: leave alone while the user is adjusting this zone
+            if (!this.interacting[nc.id]) {
+              ec.minVolume = nc.minVolume; ec.maxVolume = nc.maxVolume;
+              ec.quietThresholdDb = nc.quietThresholdDb; ec.loudThresholdDb = nc.loudThresholdDb;
+              ec.smoothingFactor = nc.smoothingFactor; ec.sustainCount = nc.sustainCount;
+            }
+            return ec;
+          });
+        },
+        // Mark a zone "being edited" so polls don't overwrite it for ~1.5s.
+        markInteracting(id) {
+          this.interacting[id] = true;
+          clearTimeout(this._interactTimers[id]);
+          this._interactTimers[id] = setTimeout(() => { delete this.interacting[id]; }, 1500);
         },
 
         selectDevice(device) { this.selectedDeviceId = device.id; this.tab = 'config'; this.loadDeviceConfigs(); },
 
         async loadDeviceConfigs() {
           if (!this.selectedDeviceId) { this.deviceConfigs = []; return; }
-          try { const res = await fetch(`${API}/configs/device/${this.selectedDeviceId}`); this.deviceConfigs = await res.json(); } catch (e) { this.showToast('Failed to load configs', 'error'); }
+          try {
+            const res = await fetch(`${API}/configs/device/${this.selectedDeviceId}`);
+            const incoming = await res.json();
+            this.deviceConfigs = this.mergeConfigs(this.deviceConfigs, incoming);
+          } catch (e) { /* polled — stay silent */ }
         },
 
         async searchAccounts() {
