@@ -52,6 +52,7 @@ model ZoneConfig {
   smoothingFactor       Float    @default(0.2)
   sustainCount          Int      @default(3)
   currentVolume         Int      @default(8)
+  playerOnline          Boolean  @default(true) // false when Soundtrack reports the zone's player offline
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

@@ -169,6 +169,7 @@
                   <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-3">
                       <span class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
+                      <span x-show="cfg.playerOnline === false" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/30" title="Soundtrack can't reach this zone's player. Make sure the player is online and playing.">⚠ Player offline</span>
                       <button @click="toggleZonePause(cfg)"
                               :class="!cfg.isEnabled ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' : 'bg-green-500/15 text-green-400 border-green-500/30'"
                               class="px-3 py-1 rounded-full text-xs font-medium border transition hover:opacity-80">
@@ -493,7 +494,10 @@
                   <div class="flex items-center justify-between p-4 pb-0">
                     <div class="flex items-center gap-3">
                       <div>
-                        <p class="font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></p>
+                        <p class="font-medium flex items-center gap-2">
+                          <span x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
+                          <span x-show="cfg.playerOnline === false" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/30" title="Soundtrack can't reach this zone's player">⚠ Player offline</span>
+                        </p>
                         <p class="text-sm text-gray-400" x-text="cfg.soundtrackAccountName || cfg.soundtrackAccountId"></p>
                       </div>
                       <label class="relative inline-flex items-center cursor-pointer">
@@ -707,7 +711,8 @@
                     <div class="flex items-center justify-between mb-4">
                       <div class="flex items-center gap-3">
                         <span class="text-sm font-medium" x-text="cfg.soundtrackZoneName || cfg.soundtrackZoneId"></span>
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-green-500/15 text-green-400 border-green-500/30">
+                        <span x-show="cfg.playerOnline === false" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/30" title="Soundtrack can't reach this zone's player">⚠ Player offline</span>
+                        <span x-show="cfg.playerOnline !== false" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border bg-green-500/15 text-green-400 border-green-500/30">
                           <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active
                         </span>
                       </div>

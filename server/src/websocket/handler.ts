@@ -158,12 +158,16 @@ async function handleSoundLevel(msg: SoundLevelMessage): Promise<void> {
       sustainThreshold: config.sustainCount ?? 2,
     });
 
+    const updates: { currentVolume?: number; playerOnline?: boolean } = {};
     if (result.apiCalled && result.volume != null) {
-      // Update stored volume
-      await prisma.zoneConfig.update({
-        where: { id: config.id },
-        data: { currentVolume: result.volume },
-      });
+      updates.currentVolume = result.volume;
+    }
+    // Persist player online/offline transitions so the dashboard can show it.
+    if (result.playerOnline !== undefined && result.playerOnline !== config.playerOnline) {
+      updates.playerOnline = result.playerOnline;
+    }
+    if (Object.keys(updates).length > 0) {
+      await prisma.zoneConfig.update({ where: { id: config.id }, data: updates });
     }
   }
 }

@@ -169,15 +169,26 @@ export class SoundtrackService {
   async setVolume(zoneId: string, volume: number): Promise<any> {
     const clampedVolume = Math.max(0, Math.min(16, Math.round(volume)));
 
-    const data = await this.graphql<any>(
-      `mutation {
-        setVolume(input: { soundZone: "${zoneId}", volume: ${clampedVolume} }) {
-          volume
-        }
-      }`
-    );
-
-    console.log(`Volume set: zone=${zoneId} volume=${clampedVolume}`);
-    return data;
+    try {
+      const data = await this.graphql<any>(
+        `mutation {
+          setVolume(input: { soundZone: "${zoneId}", volume: ${clampedVolume} }) {
+            volume
+          }
+        }`
+      );
+      console.log(`Volume set: zone=${zoneId} volume=${clampedVolume}`);
+      return data;
+    } catch (err: any) {
+      // Soundtrack returns "Not found" when the zone's PLAYER is offline (not a
+      // permissions issue). Surface that as a typed error so the caller can back
+      // off and flag the zone instead of hammering the API every 2s.
+      if (err?.message && /not found/i.test(err.message)) {
+        const offline: any = new Error(`Player offline for zone ${zoneId}`);
+        offline.playerOffline = true;
+        throw offline;
+      }
+      throw err;
+    }
   }
 }

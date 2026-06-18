@@ -5,10 +5,15 @@ interface ZoneState {
   currentVolume: number;
   lastApiCallTime: number;
   lastIncreaseTime: number; // when we last RAISED volume (for runaway-gain guard)
+  playerOfflineUntil: number; // backoff: skip setVolume attempts until this time
   sustainCount: number;
   pendingVolume: number | null;
   pendingDirection: number | null; // 1 = up, -1 = down
 }
+
+// When Soundtrack reports the zone's player offline, stop hammering setVolume
+// every 2s — wait this long before retrying (also detects when it comes back).
+const PLAYER_OFFLINE_BACKOFF_MS = 30000;
 
 // Runaway-gain guard: after the controller raises volume, the device's own music
 // gets louder and the in-room mic hears it, which would push volume up again — a
@@ -43,7 +48,7 @@ export class VolumeMapper {
       smoothingFactor: number;
       sustainThreshold: number;
     }
-  ): Promise<{ volume: number; apiCalled: boolean }> {
+  ): Promise<{ volume: number; apiCalled: boolean; playerOnline?: boolean }> {
     if (!config.isEnabled) {
       return { volume: -1, apiCalled: false };
     }
@@ -62,6 +67,7 @@ export class VolumeMapper {
         currentVolume: Math.round((config.minVolume + config.maxVolume) / 2),
         lastApiCallTime: 0,
         lastIncreaseTime: 0,
+        playerOfflineUntil: 0,
         sustainCount: 0,
         pendingVolume: null,
         pendingDirection: null,
@@ -106,10 +112,17 @@ export class VolumeMapper {
     }
 
     let apiCalled = false;
+    let playerOnline: boolean | undefined;
 
     // Only apply change after 2+ sustained readings
     if (state.sustainCount >= config.sustainThreshold && state.pendingVolume !== null) {
       const now = Date.now();
+
+      // Player-offline backoff: if Soundtrack recently reported the player offline,
+      // don't retry setVolume every 2s — wait out the backoff window.
+      if (state.playerOfflineUntil && now < state.playerOfflineUntil) {
+        return { volume: state.currentVolume, apiCalled: false, playerOnline: false };
+      }
 
       // Runaway-gain guard: don't raise volume again until the settle window after
       // the last increase has elapsed. Decreases are always allowed so the system
@@ -139,10 +152,18 @@ export class VolumeMapper {
           await this.soundtrack.setVolume(zoneId, state.pendingVolume);
           state.currentVolume = state.pendingVolume;
           if (isIncrease) state.lastIncreaseTime = now;
+          state.playerOfflineUntil = 0;
           apiCalled = true;
-        } catch (err) {
+          playerOnline = true;
+        } catch (err: any) {
           state.lastApiCallTime = previousCallTime;
-          console.error(`Failed to set volume for zone ${zoneId}:`, err);
+          if (err?.playerOffline) {
+            state.playerOfflineUntil = now + PLAYER_OFFLINE_BACKOFF_MS;
+            playerOnline = false;
+            console.warn(`Zone ${zoneId} player offline — backing off ${PLAYER_OFFLINE_BACKOFF_MS / 1000}s`);
+          } else {
+            console.error(`Failed to set volume for zone ${zoneId}:`, err);
+          }
         }
         state.pendingVolume = null;
         state.pendingDirection = null;
@@ -150,7 +171,7 @@ export class VolumeMapper {
       }
     }
 
-    return { volume: state.currentVolume, apiCalled };
+    return { volume: state.currentVolume, apiCalled, playerOnline };
   }
 
   /**
