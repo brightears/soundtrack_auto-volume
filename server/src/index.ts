@@ -1,3 +1,5 @@
+import "./instrument"; // MUST be first — initializes Sentry before anything else
+import * as Sentry from "@sentry/node";
 import express from "express";
 import cors from "cors";
 import http from "http";
@@ -46,6 +48,9 @@ app.use("/api/soundtrack", soundtrackRoutes);
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "../public/index.html"));
 });
+
+// Sentry Express error handler (no-op unless SENTRY_DSN is configured)
+Sentry.setupExpressErrorHandler(app);
 
 // WebSocket server
 setupWebSocket(server);

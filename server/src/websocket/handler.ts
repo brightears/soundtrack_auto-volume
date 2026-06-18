@@ -1,5 +1,6 @@
 import http from "http";
 import WebSocket, { WebSocketServer } from "ws";
+import * as Sentry from "@sentry/node";
 import { DeviceManager } from "../services/device-manager";
 import { VolumeMapper } from "../services/volume-mapper";
 import { SoundtrackService } from "../services/soundtrack";
@@ -57,6 +58,7 @@ export function setupWebSocket(server: http.Server): void {
         }
       } catch (err) {
         console.error("WebSocket message error:", err);
+        Sentry.captureException(err);
       }
     });
 
@@ -69,6 +71,7 @@ export function setupWebSocket(server: http.Server): void {
 
     ws.on("error", (err) => {
       console.error("WebSocket error:", err);
+      Sentry.captureException(err);
     });
   });
 
