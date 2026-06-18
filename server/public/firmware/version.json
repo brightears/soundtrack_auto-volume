@@ -1,0 +1,5 @@
+{
+  "version": "0.0.0",
+  "available": false,
+  "notes": "No OTA image published yet. Build the firmware, then run `node scripts/publish-firmware.mjs <version> \"<notes>\"` and push to deploy."
+}

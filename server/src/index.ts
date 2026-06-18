@@ -12,6 +12,7 @@ import { configRoutes } from "./routes/configs";
 import { soundtrackRoutes } from "./routes/soundtrack";
 import { authRoutes } from "./routes/auth";
 import { customerRoutes } from "./routes/customers";
+import { firmwareRoutes } from "./routes/firmware";
 import { attachAuth, logAuthStatus } from "./auth";
 
 const app = express();
@@ -43,6 +44,7 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/devices", deviceRoutes);
 app.use("/api/configs", configRoutes);
 app.use("/api/soundtrack", soundtrackRoutes);
+app.use("/api/firmware", firmwareRoutes);
 
 // SPA fallback - serve index.html for non-API routes
 app.get("*", (_req, res) => {

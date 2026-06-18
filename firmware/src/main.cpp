@@ -12,6 +12,7 @@
 #include "pins.h"
 #include "config.h"
 #include "provisioning.h"
+#include "ota.h"
 
 // --- Display (QSPI SH8601 AMOLED) ---
 Arduino_DataBus *qspi_bus = new Arduino_ESP32QSPI(
@@ -68,6 +69,11 @@ void drawStaticUI();
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 const char* wifiStatusStr(wl_status_t status);
 
+// OTA hooks: free the websocket before a TLS download, restore it if the update
+// fails (on success the device reboots into the new image).
+static void otaBeforeUpdate() { ws.disconnect(); }
+static void otaAfterFailedUpdate() { initWebSocket(); }
+
 // --- ES8311 Register helpers ---
 void es8311Write(uint8_t reg, uint8_t val) {
   Wire.beginTransmission(ADDR_ES8311);
@@ -91,9 +97,16 @@ void setup() {
   Serial.println("\n=== Soundtrack Auto-Volume ESP32 ===");
   Serial.printf("Firmware: %s\n", FW_VERSION);
 
+  // Before anything else: if a freshly-OTA'd image has failed to reach the
+  // server across several reboots, revert to the previous known-good image.
+  otaBootCheck();
+
   initI2C();
   initTCA9554();
   initDisplay();
+
+  // Now that the display exists, give OTA its screen + websocket teardown hooks.
+  otaInit(gfx, otaBeforeUpdate, otaAfterFailedUpdate);
 
   // Generate device ID from MAC
   WiFi.mode(WIFI_STA);
@@ -228,6 +241,9 @@ void loop() {
     lastDisplayUpdate = now;
     updateDisplay();
   }
+
+  // OTA: periodic/triggered firmware self-update (blocks during a download).
+  otaLoop(now, wsConnected, wsHost);
 }
 
 // --- I2C Init ---
@@ -598,6 +614,8 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
         Serial.printf("Sent register message (account: %s)\n",
                        accountId.length() > 0 ? accountId.c_str() : "none");
       }
+      // Reaching the server proves a freshly-OTA'd image is healthy.
+      otaMarkValidIfPending();
       break;
 
     case WStype_TEXT:
@@ -611,6 +629,10 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
             resetProvisioning();
             delay(500);
             ESP.restart();
+          }
+          if (msgType && strcmp(msgType, "ota_check") == 0) {
+            Serial.println("OTA check requested by server");
+            otaRequestCheck(); // honored on next loop, never inside this callback
           }
           if (msgType && strcmp(msgType, "set_account") == 0) {
             const char* newAccountId = rxDoc["accountId"];

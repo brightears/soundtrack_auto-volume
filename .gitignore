@@ -29,6 +29,9 @@ build/
 *.bin
 *.map
 
+# ...but DO commit the published OTA image — Render serves it to devices.
+!server/public/firmware/firmware.bin
+
 # Node.js
 node_modules/
 dist/

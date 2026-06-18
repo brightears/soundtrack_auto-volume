@@ -31,7 +31,15 @@
 #define DEVICE_ID_PREFIX   "esp32-"
 
 // Firmware version
-#define FW_VERSION         "2.5.0"
+#define FW_VERSION         "2.6.0"
+
+// OTA (over-the-air firmware update). The device polls a manifest on the server
+// and self-updates when a newer version is published. D'ARK's beta unit ships on
+// 2.5.0 (no OTA client); OTA is exercised on the spare/dev unit first.
+#define OTA_VERSION_PATH        "/api/firmware/version"  // GET {version,url,md5,available}
+#define OTA_INITIAL_DELAY_MS    30000UL     // wait 30s after coming online before first check
+#define OTA_CHECK_INTERVAL_MS   21600000UL  // re-check every 6 hours
+#define OTA_MAX_PROBATION_BOOTS 3           // reboots a new image gets to reach the server before revert
 
 // NVS keys
 #define NVS_KEY_ACCOUNT    "account_id"
