@@ -40,6 +40,16 @@
 #define OTA_INITIAL_DELAY_MS    30000UL     // wait 30s after coming online before first check
 #define OTA_CHECK_INTERVAL_MS   21600000UL  // re-check every 6 hours
 #define OTA_MAX_PROBATION_BOOTS 3           // reboots a new image gets to reach the server before revert
+#define OTA_TLS_VALIDATE        1           // 1 = validate the update server's TLS chain via the SDK root-CA bundle
+
+// Field hardening (v2.6) — self-healing + remote diagnostics for deployed units.
+// The core only watches the idle task; loop() itself was never under a watchdog.
+// NOTE: must exceed the WebSockets lib's hardcoded 120s TLS handshake timeout —
+// a stalled handshake inside ws.loop() is a legitimate (if rare) 2-minute block.
+#define TASK_WDT_TIMEOUT_S      150         // reboot if loop() hangs this long (captive portal is exempt)
+#define OTA_HANDSHAKE_TIMEOUT_S 15          // OTA clients fail fast instead of hanging on TLS
+#define SERVER_WD_REBOOT_MS     720000UL    // 12 min WiFi-up/server-down → reboot (self-heals "WiFi Connected / Server Offline")
+#define STATUS_INTERVAL_MS      60000UL     // status beacon (RSSI/heap/uptime/power) every 60s
 
 // NVS keys
 #define NVS_KEY_ACCOUNT    "account_id"

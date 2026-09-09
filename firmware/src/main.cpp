@@ -8,6 +8,10 @@
 #include <Arduino_GFX_Library.h>
 
 #include <Preferences.h>
+#include <esp_task_wdt.h>
+#include <esp_system.h>
+#define XPOWERS_CHIP_AXP2101
+#include <XPowersLib.h>
 
 #include "pins.h"
 #include "config.h"
@@ -40,6 +44,14 @@ static unsigned long lastWiFiRetry = 0;
 static int consecutiveWiFiFailures = 0;
 static bool everConnected = false; // have we ever had a working WiFi connection?
 
+// Field-hardening state (v2.6): PMU telemetry, server-reachability watchdog, status beacon.
+static XPowersPMU pmu;
+static bool pmuReady = false;
+static unsigned long wsDownSince = 0;   // millis() when the server link dropped while WiFi stayed up (0 = up)
+static unsigned long lastStatusSend = 0;
+static bool wdtArmed = false;
+static const char *bootReason = "UNKNOWN";
+
 #define I2S_PORT I2S_NUM_0
 #define DISPLAY_UPDATE_INTERVAL 200  // ms between display redraws
 
@@ -68,6 +80,13 @@ void updateDisplay();
 void drawStaticUI();
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length);
 const char* wifiStatusStr(wl_status_t status);
+const char* resetReasonStr(esp_reset_reason_t r);
+void initPMU();
+void readPower(bool &haveInfo, bool &onUsb, int &pct);
+void sendStatus();
+void wdtArm();
+void wdtPause();
+void wdtResume();
 
 // OTA hooks: free the websocket before a TLS download, restore it if the update
 // fails (on success the device reboots into the new image).
@@ -96,6 +115,8 @@ void setup() {
   delay(1000);
   Serial.println("\n=== Soundtrack Auto-Volume ESP32 ===");
   Serial.printf("Firmware: %s\n", FW_VERSION);
+  bootReason = resetReasonStr(esp_reset_reason());
+  Serial.printf("Reset reason: %s\n", bootReason);
 
   // Before anything else: if a freshly-OTA'd image has failed to reach the
   // server across several reboots, revert to the previous known-good image.
@@ -103,6 +124,7 @@ void setup() {
 
   initI2C();
   initTCA9554();
+  initPMU();
   initDisplay();
 
   // Now that the display exists, give OTA its screen + websocket teardown hooks.
@@ -151,12 +173,16 @@ void setup() {
     Serial.println("WiFi not connected - will retry in loop");
   }
 
+  // Arm last: setup() legitimately blocks for up to minutes (WiFi retries, portal).
+  wdtArm();
+
   Serial.println("Setup complete!");
 }
 
 // --- Main loop ---
 void loop() {
   unsigned long now = millis();
+  if (wdtArmed) esp_task_wdt_reset();
 
   // Check WiFi and reconnect if needed
   if (WiFi.status() != WL_CONNECTED) {
@@ -181,10 +207,13 @@ void loop() {
       if (consecutiveWiFiFailures >= threshold) {
         Serial.println("Sustained WiFi failure — re-opening setup portal...");
         consecutiveWiFiFailures = 0;
+        wdtPause(); // portal blocks up to 3 min by design — never let the watchdog cut setup short
         bool connected = startCaptivePortal(gfx);
+        wdtResume();
         if (connected) {
           wifiConnected = true;
           everConnected = true;
+          wsDownSince = 0; // fresh WiFi link — give the websocket a full 12 min before judging it
           wsHost = DEFAULT_WS_HOST;
           accountId = getAccountId();
           initWebSocket();
@@ -209,6 +238,7 @@ void loop() {
     wifiConnected = true;
     everConnected = true;
     consecutiveWiFiFailures = 0;
+    wsDownSince = 0; // fresh WiFi link — server watchdog budget restarts from here
     Serial.printf("WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
     Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
 
@@ -223,6 +253,31 @@ void loop() {
   }
 
   ws.loop();
+
+  // Server-reachability watchdog: WiFi is up but the server link is down. This is
+  // exactly the field failure seen at D'ARK ("WiFi Connected / Server Offline" for
+  // hours until someone rebooted it by hand). ws.loop() already retries (and
+  // correctly frees/reallocates its client) every WS_RETRY_DELAY, so we don't
+  // rebuild the client ourselves — calling disconnect()+begin() while not
+  // connected leaks the mbedtls client. If retries haven't worked for 12 minutes,
+  // a 10-second reboot beats a silently stale device. The timer only counts time
+  // while WiFi has been continuously up (reset on every WiFi down→up).
+  if (!wsConnected) {
+    if (wsDownSince == 0) wsDownSince = now;
+    if (now - wsDownSince >= SERVER_WD_REBOOT_MS) {
+      Serial.println("[watchdog] server unreachable 12 min — rebooting");
+      delay(200);
+      ESP.restart();
+    }
+  } else {
+    wsDownSince = 0;
+  }
+
+  // Status beacon: RSSI / heap / uptime / power for remote diagnostics.
+  if (wsConnected && now - lastStatusSend >= STATUS_INTERVAL_MS) {
+    lastStatusSend = now;
+    sendStatus();
+  }
 
   // Calculate dB periodically
   if (now - lastDbCalc >= DB_CALC_INTERVAL) {
@@ -560,6 +615,102 @@ void initI2S() {
   Serial.println("I2S OK");
 }
 
+// --- Reset reason (sent on register so a crash/brownout is visible remotely) ---
+const char* resetReasonStr(esp_reset_reason_t r) {
+  switch (r) {
+    case ESP_RST_POWERON:   return "POWERON";
+    case ESP_RST_EXT:       return "EXT";
+    case ESP_RST_SW:        return "SW";
+    case ESP_RST_PANIC:     return "PANIC";
+    case ESP_RST_INT_WDT:   return "INT_WDT";
+    case ESP_RST_TASK_WDT:  return "TASK_WDT";
+    case ESP_RST_WDT:       return "WDT";
+    case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:  return "BROWNOUT";
+    case ESP_RST_SDIO:      return "SDIO";
+    default:                return "UNKNOWN";
+  }
+}
+
+// --- AXP2101 PMU: USB-vs-battery power state ---
+// We never touch the power rails. begin() probes the chip ID and disables the
+// TS-pin (NTC) temperature check — correct for this board's 2-pin battery
+// connector, which has no thermistor. Everything after that is register reads.
+// A unit "running on battery" is the #1 field failure (someone unplugged it and it
+// dies ~3h later), so this is reported to the dashboard and alerted on.
+void initPMU() {
+  Serial.println("Init AXP2101 PMU...");
+  pmuReady = pmu.begin(Wire, ADDR_AXP2101, PIN_I2C_SDA, PIN_I2C_SCL);
+  if (!pmuReady) {
+    Serial.println("WARN: AXP2101 not found — power telemetry disabled");
+    return;
+  }
+  bool have, onUsb; int pct;
+  readPower(have, onUsb, pct);
+  Serial.printf("PMU OK — USB power: %s, battery: %d%%\n", onUsb ? "yes" : "NO (on battery)", pct);
+}
+
+// haveInfo=false when the PMU isn't readable; pct=-1 when no battery is attached.
+void readPower(bool &haveInfo, bool &onUsb, int &pct) {
+  haveInfo = pmuReady;
+  onUsb = true;
+  pct = -1;
+  if (!pmuReady) return;
+  onUsb = pmu.isVbusIn();
+  if (pmu.isBatteryConnect()) pct = pmu.getBatteryPercent();
+}
+
+// Shared telemetry fields for the register message and the periodic status beacon.
+static void addTelemetry(JsonDocument &doc) {
+  doc["rssi"] = WiFi.RSSI();
+  doc["freeHeap"] = (uint32_t)ESP.getFreeHeap();
+  doc["uptimeSec"] = (uint32_t)(millis() / 1000);
+  bool have, onUsb; int pct;
+  readPower(have, onUsb, pct);
+  if (have) {
+    doc["onUsb"] = onUsb;
+    if (pct >= 0) doc["batteryPct"] = pct;
+  } else {
+    doc["onUsb"] = nullptr;
+  }
+}
+
+void sendStatus() {
+  JsonDocument doc;
+  doc["type"] = "status";
+  doc["deviceId"] = deviceId;
+  doc["fw"] = FW_VERSION;
+  addTelemetry(doc);
+  String json;
+  serializeJson(doc, json);
+  ws.sendTXT(json);
+}
+
+// --- Task watchdog: recover from a hung loop() ---
+// The Arduino core pre-initialises the TWDT (5s, idle task only); loop() itself was
+// never subscribed, so a hang would sit there forever. Reconfigure to a lenient
+// timeout and subscribe loop(). trigger_panic → reboot, and the next register
+// message reports resetReason=TASK_WDT so we can see it happened.
+void wdtArm() {
+  esp_task_wdt_config_t cfg = {
+    .timeout_ms = TASK_WDT_TIMEOUT_S * 1000,
+    .idle_core_mask = (1 << 0),
+    .trigger_panic = true,
+  };
+  esp_err_t err = esp_task_wdt_reconfigure(&cfg);
+  if (err != ESP_OK) err = esp_task_wdt_init(&cfg); // core didn't pre-init (defensive)
+  if (esp_task_wdt_add(NULL) == ESP_OK) {
+    wdtArmed = true;
+    Serial.printf("Task watchdog armed (%ds)\n", TASK_WDT_TIMEOUT_S);
+  } else {
+    Serial.printf("WARN: task watchdog not armed (err %d)\n", err);
+  }
+}
+// The captive portal blocks for up to 3 minutes by design — take loop() off the
+// watchdog for its duration so provisioning can never be cut short by a reboot.
+void wdtPause()  { if (wdtArmed) esp_task_wdt_delete(NULL); }
+void wdtResume() { if (wdtArmed) esp_task_wdt_add(NULL); }
+
 // --- WiFi status to string ---
 const char* wifiStatusStr(wl_status_t status) {
   switch (status) {
@@ -605,6 +756,9 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
         doc["type"] = "register";
         doc["deviceId"] = deviceId;
         doc["firmware"] = FW_VERSION;
+        doc["resetReason"] = bootReason;
+        doc["ip"] = WiFi.localIP().toString();
+        addTelemetry(doc);
         if (accountId.length() > 0) {
           doc["accountId"] = accountId;
         }
@@ -628,6 +782,11 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
             Serial.println("Factory reset command received!");
             resetProvisioning();
             delay(500);
+            ESP.restart();
+          }
+          if (msgType && strcmp(msgType, "reboot") == 0) {
+            Serial.println("Reboot command received from server");
+            delay(300);
             ESP.restart();
           }
           if (msgType && strcmp(msgType, "ota_check") == 0) {

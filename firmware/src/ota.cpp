@@ -7,9 +7,29 @@
 #include <ArduinoJson.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
+#include <esp_task_wdt.h>
 
 #include "config.h"
 #include "ota.h"
+
+// Root-CA bundle compiled into the SDK (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL).
+// An OTA channel must never be setInsecure(): a spoofed server could hand the device
+// arbitrary firmware. Validating the chain costs nothing to maintain (no pinned cert
+// to rotate) and is fail-safe — if validation fails we skip the update and stay online.
+// (This SDK has MBEDTLS_HAVE_TIME_DATE off, so no NTP sync is needed for validation.)
+extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
+extern const uint8_t x509_crt_bundle_end[]   asm("_binary_x509_crt_bundle_end");
+
+static void otaSecureClient(WiFiClientSecure &c) {
+  // The library default is a 120s handshake timeout, which would block loop()
+  // (and flirt with the task watchdog). OTA is best-effort: fail fast, retry later.
+  c.setHandshakeTimeout(OTA_HANDSHAKE_TIMEOUT_S);
+#if OTA_TLS_VALIDATE
+  c.setCACertBundle(x509_crt_bundle_start, (size_t)(x509_crt_bundle_end - x509_crt_bundle_start));
+#else
+  c.setInsecure();
+#endif
+}
 
 // NVS namespace shared with provisioning (Preferences "autovolume").
 static const char *NVS_NS = "autovolume";
@@ -119,9 +139,10 @@ static void performUpdate(const String &binUrl) {
   if (s_before) s_before(); // drop the websocket so TLS has the heap it needs
 
   WiFiClientSecure client;
-  client.setInsecure(); // TODO: pin Render's CA or enforce manifest md5 for stronger integrity
+  otaSecureClient(client);
   httpUpdate.rebootOnUpdate(false);
   httpUpdate.onProgress([](int cur, int total) {
+    esp_task_wdt_reset(); // the download blocks loop(); keep the task watchdog fed
     static int lastPct = -1;
     int pct = total > 0 ? (cur * 100) / total : 0;
     if (pct != lastPct && pct % 5 == 0) {
@@ -170,7 +191,7 @@ static void otaCheckNow(const String &host) {
   Serial.printf("[ota] checking %s\n", url.c_str());
 
   WiFiClientSecure client;
-  client.setInsecure();
+  otaSecureClient(client);
   HTTPClient http;
   http.setConnectTimeout(8000);
   http.setTimeout(8000);

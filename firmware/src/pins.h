@@ -31,6 +31,7 @@
 #define ADDR_TCA9554   0x20
 #define ADDR_ES8311    0x18
 #define ADDR_FT3168    0x38
+#define ADDR_AXP2101   0x34  // PMU: battery / USB power state (read-only use)
 
 // TCA9554 EXIO pin assignments
 #define EXIO_DISPLAY_RST  2
