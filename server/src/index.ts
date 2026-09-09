@@ -13,6 +13,8 @@ import { soundtrackRoutes } from "./routes/soundtrack";
 import { authRoutes } from "./routes/auth";
 import { customerRoutes } from "./routes/customers";
 import { firmwareRoutes } from "./routes/firmware";
+import { alertRoutes } from "./routes/alerts";
+import { alerts } from "./services/alerts";
 import { attachAuth, logAuthStatus } from "./auth";
 
 const app = express();
@@ -45,6 +47,14 @@ app.use("/api/devices", deviceRoutes);
 app.use("/api/configs", configRoutes);
 app.use("/api/soundtrack", soundtrackRoutes);
 app.use("/api/firmware", firmwareRoutes);
+app.use("/api/alerts", alertRoutes);
+
+// Unknown API paths and missing firmware binaries must get a real 404 — never
+// the SPA's index.html. A device doing OTA would otherwise happily download an
+// HTML page as "firmware" (the app-level auto-revert would catch it, but this
+// is the cheap first line of defence).
+app.all("/api/*", (_req, res) => res.status(404).json({ error: "Not found" }));
+app.get("/firmware/*", (_req, res) => res.status(404).end());
 
 // SPA fallback - serve index.html for non-API routes
 app.get("*", (_req, res) => {
@@ -87,6 +97,7 @@ server.listen(config.port, () => {
   console.log(`Environment: ${config.nodeEnv}`);
   console.log(`WebSocket ready on ws://localhost:${config.port}/ws`);
   logAuthStatus();
+  alerts.startAlertMonitor(); // logs "Alerts: ..." status; no-op unless Telegram env vars are set
 });
 
 // Graceful shutdown: Render sends SIGTERM on every deploy. Stop accepting new

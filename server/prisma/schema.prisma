@@ -17,6 +17,16 @@ model Device {
   isPaused            Boolean      @default(false)
   lastSeen            DateTime?
   lastDbLevel         Float?
+  // Device health telemetry (sent on register + periodic "status" messages)
+  rssi                Int?      // WiFi signal strength, dBm
+  freeHeap            Int?      // bytes
+  uptimeSec           Int?
+  resetReason         String?   // POWERON, SW, PANIC, INT_WDT, TASK_WDT, WDT, BROWNOUT, DEEPSLEEP, UNKNOWN
+  ip                  String?
+  onUsb               Boolean?  // null = PMU not readable
+  batteryPct          Int?
+  lastStatusAt        DateTime?
+  lastBootAt          DateTime?
   configs             ZoneConfig[]
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt

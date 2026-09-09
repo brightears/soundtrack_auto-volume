@@ -141,6 +141,11 @@
                         <button @click="renamingDeviceId = null" class="text-gray-400 text-xs">Cancel</button>
                       </div>
                       <p class="text-xs text-gray-500" x-text="device.isOnline ? 'Online' : 'Offline — last seen ' + timeAgo(device.lastSeen)"></p>
+                      <!-- Health warnings the venue can act on -->
+                      <div x-show="device.onUsb === false || (device.rssi != null && device.rssi < -75)" class="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span x-show="device.onUsb === false" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/30" title="The device is unplugged and running on its battery — it will switch off when the battery runs out">🔋 ON BATTERY — please plug in</span>
+                        <span x-show="device.rssi != null && device.rssi < -75" class="text-xs text-yellow-400" title="WiFi signal is weak — move the device closer to the router or away from obstructions">⚠ weak WiFi</span>
+                      </div>
                     </div>
                   </div>
                   <p class="text-2xl font-mono font-bold text-brand-orange" x-text="device.lastDbLevel !== null ? device.lastDbLevel.toFixed(1) + ' dB' : '--'"></p>
@@ -382,6 +387,30 @@
                     </div>
                   </div>
 
+                  <!-- Device health telemetry — each item only shows when the firmware reported it -->
+                  <div x-show="device.rssi != null || device.uptimeSec != null || device.resetReason || device.onUsb != null || device.freeHeap != null" class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <template x-if="device.rssi != null">
+                      <span :class="rssiLabel(device.rssi) === 'weak' ? 'text-yellow-400' : ''" :title="'WiFi signal ' + device.rssi + ' dBm' + (device.ip ? ' · IP ' + device.ip : '')">
+                        WiFi <span class="font-mono" x-text="device.rssi + ' dBm'"></span> <span x-text="'(' + rssiLabel(device.rssi) + ')'"></span>
+                      </span>
+                    </template>
+                    <template x-if="device.uptimeSec != null">
+                      <span title="Time since last boot">up <span class="font-mono" x-text="fmtUptime(device.uptimeSec)"></span></span>
+                    </template>
+                    <template x-if="device.resetReason">
+                      <span title="Reason for the last reboot">boot: <span class="font-mono" x-text="device.resetReason"></span></span>
+                    </template>
+                    <template x-if="device.onUsb === false">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-red-500/15 text-red-400 border border-red-500/30" title="Device is unplugged and running on its battery">🔋 ON BATTERY<span x-show="device.batteryPct != null" x-text="' ' + device.batteryPct + '%'"></span></span>
+                    </template>
+                    <template x-if="device.onUsb === true">
+                      <span class="text-gray-600" title="Running on mains power">🔌 power<span x-show="device.batteryPct != null" x-text="' ' + device.batteryPct + '%'"></span></span>
+                    </template>
+                    <template x-if="device.freeHeap != null">
+                      <span class="text-gray-600" title="Free RAM">heap <span class="font-mono" x-text="Math.round(device.freeHeap / 1024) + ' KB'"></span></span>
+                    </template>
+                  </div>
+
                   <!-- Inline account search -->
                   <div x-show="assigningAccountForDevice === device.id" x-transition class="mt-3 space-y-2">
                     <div class="flex gap-2">
@@ -409,7 +438,8 @@
                   <template x-if="(device.configs || []).length === 0 && device.isOnline">
                     <button @click="startWizard(device)" class="text-green-400 hover:text-green-300 font-medium">Quick Setup</button>
                   </template>
-                  <button @click="resetDevice(device)" class="ml-auto text-gray-500 hover:text-red-400 font-medium" title="Factory reset — wipes the device's WiFi; it will need re-provisioning">Reset Device</button>
+                  <button @click="rebootDevice(device)" class="ml-auto text-gray-500 hover:text-gray-300 font-medium" title="Restart the device — keeps WiFi and all settings">Reboot</button>
+                  <button @click="resetDevice(device)" class="text-gray-500 hover:text-red-400 font-medium" title="Factory reset — wipes the device's WiFi; it will need re-provisioning">Reset Device</button>
                 </div>
               </div>
             </template>
@@ -1087,6 +1117,18 @@
           } catch (e) { this.showToast('Failed to send reset command', 'error'); }
         },
 
+        async rebootDevice(device) {
+          if (!confirm('Reboot ' + (device.name || device.deviceId) + '?')) return;
+          try {
+            const res = await fetch(`${API}/devices/${device.id}/reboot`, { method: 'POST' });
+            if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            if (data.online) this.showToast('Reboot sent', 'success');
+            else this.showToast('Device is offline — a remote reboot needs it online', 'error');
+            setTimeout(() => this.loadDevices(), 3000);
+          } catch (e) { this.showToast('Failed to send reboot command', 'error'); }
+        },
+
         // Quick inline update helpers (customer mode)
         async quickUpdateReactivity(cfg, level) {
           this.markInteracting(cfg.id);
@@ -1190,6 +1232,9 @@
             ex.isOnline = nd.isOnline; ex.lastSeen = nd.lastSeen; ex.lastDbLevel = nd.lastDbLevel;
             ex.name = nd.name; ex.firmware = nd.firmware; ex.isPaused = nd.isPaused;
             ex.soundtrackAccountId = nd.soundtrackAccountId;
+            // health telemetry
+            ex.rssi = nd.rssi; ex.freeHeap = nd.freeHeap; ex.uptimeSec = nd.uptimeSec; ex.resetReason = nd.resetReason;
+            ex.ip = nd.ip; ex.onUsb = nd.onUsb; ex.batteryPct = nd.batteryPct; ex.lastStatusAt = nd.lastStatusAt; ex.lastBootAt = nd.lastBootAt;
             ex.configs = this.mergeConfigs(ex.configs || [], nd.configs || []);
             return ex;
           });
@@ -1307,6 +1352,8 @@
         },
 
         dbPercent(db) { return db == null ? 0 : Math.max(0, Math.min(100, ((db + 85) / 60) * 100)); },
+        fmtUptime(sec) { if (sec == null) return '--'; const m = Math.floor(sec / 60) % 60, h = Math.floor(sec / 3600) % 24, d = Math.floor(sec / 86400); if (d > 0) return d + 'd ' + h + 'h ' + m + 'm'; if (h > 0) return h + 'h ' + m + 'm'; return m + 'm'; },
+        rssiLabel(rssi) { if (rssi == null) return ''; if (rssi > -60) return 'good'; if (rssi > -70) return 'ok'; return 'weak'; },
         dbToPercent(db) { return Math.max(0, Math.min(100, ((db + 85) / 60) * 100)); },
         dbColor(db) { if (db == null) return 'bg-gray-500'; if (db > -35) return 'bg-red-500'; if (db > -55) return 'bg-yellow-500'; return 'bg-green-500'; },
         timeAgo(d) { const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000); if (s < 60) return s + 's ago'; const m = Math.floor(s / 60); if (m < 60) return m + 'm ago'; const h = Math.floor(m / 60); if (h < 24) return h + 'h ago'; return Math.floor(h / 24) + 'd ago'; },

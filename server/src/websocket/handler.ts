@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/node";
 import { DeviceManager } from "../services/device-manager";
 import { VolumeMapper } from "../services/volume-mapper";
 import { SoundtrackService } from "../services/soundtrack";
+import { alerts } from "../services/alerts";
 import { prisma } from "../db";
 
 const deviceManager = new DeviceManager();
@@ -22,9 +23,29 @@ interface RegisterMessage {
   deviceId: string;
   firmware?: string;
   accountId?: string;
+  // Optional health telemetry (newer firmware)
+  resetReason?: string; // POWERON, SW, PANIC, INT_WDT, TASK_WDT, WDT, BROWNOUT, DEEPSLEEP, UNKNOWN
+  rssi?: number; // dBm
+  ip?: string;
+  uptimeSec?: number;
+  freeHeap?: number;
+  onUsb?: boolean | null; // null = PMU not readable
+  batteryPct?: number | null;
 }
 
-type IncomingMessage = SoundLevelMessage | RegisterMessage;
+// Periodic health heartbeat (~every 60s)
+interface StatusMessage {
+  type: "status";
+  deviceId: string;
+  rssi?: number;
+  freeHeap?: number;
+  uptimeSec?: number;
+  onUsb?: boolean | null;
+  batteryPct?: number | null;
+  fw?: string;
+}
+
+type IncomingMessage = SoundLevelMessage | RegisterMessage | StatusMessage;
 
 const HEARTBEAT_INTERVAL_MS = 30000;
 interface LiveSocket extends WebSocket {
@@ -52,6 +73,9 @@ export function setupWebSocket(server: http.Server): void {
             break;
           case "sound_level":
             await handleSoundLevel(message);
+            break;
+          case "status":
+            await handleStatus(message);
             break;
           default:
             console.warn("Unknown message type:", (message as any).type);
@@ -104,12 +128,28 @@ export function setupWebSocket(server: http.Server): void {
 }
 
 async function handleRegister(ws: WebSocket, msg: RegisterMessage): Promise<void> {
-  await deviceManager.registerDevice(ws, msg.deviceId, msg.firmware, msg.accountId);
+  await deviceManager.registerDevice(ws, msg.deviceId, msg.firmware, msg.accountId, {
+    resetReason: msg.resetReason,
+    rssi: msg.rssi,
+    ip: msg.ip,
+    uptimeSec: msg.uptimeSec,
+    freeHeap: msg.freeHeap,
+    onUsb: msg.onUsb,
+    batteryPct: msg.batteryPct,
+  });
 
   // Send back registration confirmation + any existing configs
   const device = await prisma.device.findUnique({
     where: { deviceId: msg.deviceId },
     include: { configs: true },
+  });
+
+  // Alert on crash/watchdog/brownout reboots (no-op unless Telegram is configured)
+  alerts.onDeviceRegistered({
+    deviceId: msg.deviceId,
+    name: device?.name ?? null,
+    firmware: msg.firmware ?? device?.firmware ?? null,
+    resetReason: msg.resetReason,
   });
 
   ws.send(
@@ -129,6 +169,17 @@ async function handleRegister(ws: WebSocket, msg: RegisterMessage): Promise<void
       })
     );
   }
+}
+
+async function handleStatus(msg: StatusMessage): Promise<void> {
+  await deviceManager.updateDeviceStatus(msg.deviceId, {
+    rssi: msg.rssi,
+    freeHeap: msg.freeHeap,
+    uptimeSec: msg.uptimeSec,
+    onUsb: msg.onUsb,
+    batteryPct: msg.batteryPct,
+    fw: msg.fw,
+  });
 }
 
 async function handleSoundLevel(msg: SoundLevelMessage): Promise<void> {

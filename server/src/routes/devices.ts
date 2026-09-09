@@ -131,6 +131,20 @@ deviceRoutes.post("/:id/reset", requireAdmin, async (req: Request<{ id: string }
   }
 });
 
+// Reboot device (plain restart, keeps WiFi/config) — ADMIN ONLY
+// `online` tells the UI whether the command could actually reach the device.
+deviceRoutes.post("/:id/reboot", requireAdmin, async (req: Request<{ id: string }>, res) => {
+  try {
+    const device = await prisma.device.findUnique({ where: { id: req.params.id } });
+    if (!device) return res.status(404).json({ error: "Device not found" });
+
+    deviceManager.sendToDevice(device.deviceId, { type: "reboot" });
+    res.json({ ok: true, online: deviceManager.isDeviceOnline(device.deviceId) });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to reboot device" });
+  }
+});
+
 // Register new device via REST — ADMIN ONLY (devices normally register over WS)
 deviceRoutes.post("/", requireAdmin, async (req, res) => {
   try {
