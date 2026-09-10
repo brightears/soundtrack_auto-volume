@@ -1,8 +1,8 @@
 {
-  "version": "2.6.2",
+  "version": "2.6.1",
   "url": "https://soundtrack-auto-volume.onrender.com/firmware/firmware.bin",
-  "md5": "6e333be8bf486bd57be924d19e192279",
-  "size": 1460528,
-  "notes": "AUTO-REVERT TEST: unreachable server host",
+  "md5": "d1981745ec9940a6aa972e2759b12c20",
+  "size": 1460544,
+  "notes": "rollback after auto-revert test",
   "available": true
 }
