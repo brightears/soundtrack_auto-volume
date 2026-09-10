@@ -31,7 +31,7 @@
 #define DEVICE_ID_PREFIX   "esp32-"
 
 // Firmware version
-#define FW_VERSION         "2.6.0"
+#define FW_VERSION         "2.6.1"
 
 // OTA (over-the-air firmware update). The device polls a manifest on the server
 // and self-updates when a newer version is published. D'ARK's beta unit ships on
