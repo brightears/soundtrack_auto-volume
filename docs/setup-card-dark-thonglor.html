@@ -1,0 +1,70 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Auto-Volume Setup — D'ARK The Strand Thonglor</title>
+<style>
+@page { size: A4; margin: 12mm 12mm; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 10.6px; line-height: 1.38; margin: 0; }
+h1 { font-size: 19px; margin: 0; color: #0f0f0f; }
+.sub { color: #EFA634; font-weight: 700; font-size: 12px; margin: 1px 0 0; }
+.accent { height: 3px; background: linear-gradient(90deg,#EFA634,rgba(239,166,52,0)); margin: 6px 0 10px; }
+h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: #b9791f; margin: 11px 0 4px; border-bottom: 1px solid #eaddc6; padding-bottom: 2px; }
+.grid { display: flex; gap: 12px; } .col { flex: 1; }
+.card { background: #faf6ee; border: 1px solid #ecdcc0; border-radius: 7px; padding: 8px 10px; }
+table { width: 100%; border-collapse: collapse; } td { padding: 2px 4px; vertical-align: top; } td.k { color: #777; white-space: nowrap; width: 128px; }
+code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; background: #f0ece3; padding: 1px 5px; border-radius: 4px; font-weight: 600; }
+.big { font-size: 15px; letter-spacing: .06em; }
+ol { margin: 4px 0 0; padding-left: 18px; } ol li { margin-bottom: 3px; } ul { margin: 3px 0 0; padding-left: 15px; } ul li { margin-bottom: 2px; }
+.warn { color: #b00020; font-weight: 700; } .ok { color: #1a7d3c; font-weight: 700; }
+.foot { margin-top: 12px; padding-top: 6px; border-top: 1px solid #eee; color: #999; font-size: 9px; display:flex; justify-content:space-between; }
+b { color:#0f0f0f; }
+</style></head><body>
+<h1>Auto‑Volume — Venue Setup Card</h1>
+<p class="sub">D'ARK The Strand Thonglor</p>
+<div class="accent"></div>
+
+<div class="grid">
+<div class="col"><div class="card"><table>
+<tr><td class="k">Dashboard</td><td><b>soundtrack-auto-volume.onrender.com</b></td></tr>
+<tr><td class="k">Your login code</td><td><span class="mono big">W4MY-5U9K</span> &nbsp;(just paste it in the login box)</td></tr>
+<tr><td class="k">Soundtrack account</td><td>D'ARK The Strand Thonglor (Premium)</td></tr>
+<tr><td class="k">Zone controlled</td><td>D'ARK The Strand Thonglor</td></tr>
+<tr><td class="k">Device</td><td>esp32‑2884853ad3e4 · firmware 2.6.1</td></tr>
+</table></div></div>
+<div class="col"><div class="card"><b>WiFi requirements</b> (check before installing)
+<ul>
+<li><b>2.4 GHz</b> network — the device cannot see 5 GHz</li>
+<li><b>Normal password network</b> (WPA2‑Personal). <span class="warn">Not</span> a login‑page "guest" network, <span class="warn">not</span> Enterprise (username + password)</li>
+<li>Internet access on that network (no captive portal)</li>
+</ul></div></div>
+</div>
+
+<h2>Install — in order</h2>
+<ol>
+<li><b>Place it</b> where it hears the room: at ear/table height, open to the space, <b>not right next to a speaker</b> and not inside a cabinet.</li>
+<li><b>Plug it in permanently</b> (any USB‑C phone charger). It has no battery — it runs only while plugged in, so choose a spot near an outlet.</li>
+<li><b>First boot shows the setup network automatically.</b> The screen displays <b>SETUP — AutoVolume‑D3E4</b>. On a phone, join the WiFi network <span class="mono">AutoVolume‑D3E4</span> → a setup page opens (if not, browse to <span class="mono">http://192.168.4.1</span>) → pick the venue's 2.4 GHz network → enter its password → <b>Save</b>.</li>
+<li>Within ~30 seconds the screen shows <span class="ok">WiFi Connected</span> and <span class="ok">Server Online</span>. Done — it registers itself; nothing to type on the device.</li>
+<li><b>Switch on auto‑volume:</b> log in to the dashboard with the code above and turn the zone toggle on (it ships switched off so nothing changes until you're ready). BMAsia can also switch it on remotely.</li>
+</ol>
+
+<div class="grid">
+<div class="col">
+<h2>Day to day</h2>
+<ul>
+<li>Nothing to do — it listens to the room and adjusts the music on its own.</li>
+<li>In the dashboard you can change <b>Sensitivity</b>, <b>Reactivity</b> and the <b>volume range</b>. Tap <b>?</b> next to any setting for a plain explanation.</li>
+<li>Pause it anytime with the zone toggle (e.g. for a private event).</li>
+</ul>
+</div>
+<div class="col">
+<h2>If something looks off</h2>
+<ul>
+<li><b>Screen dark</b> → check the USB‑C cable/charger; press <b>PWR</b> once to switch on.</li>
+<li><b>"Server Offline"</b> for more than 15 minutes → the device restarts itself automatically. If it stays offline, the venue WiFi has no internet — check that a phone on the same WiFi can open a website.</li>
+<li><b>Manual restart:</b> hold <b>PWR</b> (side button) for 6 seconds until the screen goes black, then press it once. Don't tap the screen while it starts.</li>
+<li><b>WiFi changed?</b> It re‑opens the setup network by itself when it can't find the saved WiFi — just repeat step 3.</li>
+</ul>
+</div>
+</div>
+
+<div class="foot"><span>BMAsia · Auto‑Volume for Soundtrack Your Brand</span><span>Support: your BMAsia contact · device is monitored remotely</span></div>
+</body></html>
